@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # SkillSync AI
 
 SkillSync AI is an AI-powered Career Guidance and Live Job Skill Matching Platform designed for students. It offers resume analysis, semantic job matching, skill gap analysis, career readiness scoring, and personalized learning roadmaps.
@@ -64,6 +63,3 @@ Open **`http://localhost:5173`** in your browser. All requests to `/api/v1/...` 
 - `frontend/` — React responsive student interface and analytics visualizations
 - `ARCHITECTURE.md` — Detailed Clean Architecture documentation
 - `SECURITY.md` — Security and authentication policies
-=======
-# skill_match_ai
->>>>>>> d9d3079b1d84cfdf4ad4bcbf4a244c67f1bca85d

@@ -50,7 +50,9 @@ let refreshPromise = null
 async function refreshAccessToken() {
   const refreshToken = getRefreshToken()
   if (!refreshToken) throw new Error('No refresh token')
-  const { data } = await axios.post(`${env.apiBaseUrl || ''}/auth/refresh`, { refresh_token: refreshToken }, {
+  const baseUrl = env.apiBaseUrl || ''
+  const { data } = await axios.post(`${baseUrl}/auth/refresh`, { refresh_token: refreshToken }, {
+    baseURL: undefined,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
   })
   setAuthTokens(data)
