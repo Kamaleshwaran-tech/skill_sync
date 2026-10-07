@@ -52,7 +52,6 @@ const appNavItems = [
   { to: '/job-matching', label: 'Job Matches', icon: <WorkOutlineRounded fontSize="small" /> },
   { to: '/skill-gap-analysis', label: 'Skill Gap', icon: <TrendingUpOutlined fontSize="small" /> },
   { to: '/learning-roadmap', label: 'AI Roadmap', icon: <RouteOutlined fontSize="small" /> },
-  { to: '/career-readiness', label: 'Readiness', icon: <TrendingUpOutlined fontSize="small" /> },
   { to: '/profile', label: 'Profile', icon: <AccountCircleOutlined fontSize="small" /> },
 ]
 

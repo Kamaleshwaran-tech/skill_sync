@@ -19,22 +19,20 @@ export function UploadSuccessState({ fileName, onReview, onViewDashboard, onUplo
 
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 800 }}>
-            Resume uploaded & analyzed successfully
+            Resume uploaded successfully
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {fileName} is analyzed and ready for career intelligence matching.
+            {fileName} is saved. Head to your dashboard to set a target role and generate your skill gap and AI roadmap.
           </Typography>
         </Box>
 
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-          <Button variant="contained" onClick={onReview}>
+          <Button variant="contained" onClick={onViewDashboard}>
+            Go to Dashboard
+          </Button>
+          <Button variant="outlined" onClick={onReview}>
             View Resume Analysis
           </Button>
-          {onViewDashboard && (
-            <Button variant="outlined" color="primary" onClick={onViewDashboard}>
-              View Dashboard
-            </Button>
-          )}
           <Button variant="text" color="inherit" onClick={onUploadAnother}>
             Upload another
           </Button>

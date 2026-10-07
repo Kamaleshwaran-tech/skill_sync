@@ -2,14 +2,22 @@ import { apiClient } from '@/shared/api/apiClient'
 
 export const dashboardService = {
   getDashboardData: async () => {
-    try {
-      const { data } = await apiClient.get('/dashboard')
-      if (data?.profile) {
-        return data
-      }
-    } catch (err) {
-      console.warn('Backend dashboard API notice, using default state:', err?.message || err)
-    }
-    throw new Error('Unable to load dashboard data')
-  }
+    const { data } = await apiClient.get('/dashboard')
+    return data
+  },
+
+  getTargetRole: async () => {
+    const { data } = await apiClient.get('/dashboard/target-role')
+    return data.targetRole || null
+  },
+
+  setTargetRole: async (targetRole) => {
+    const { data } = await apiClient.post('/dashboard/target-role', { targetRole })
+    return data.targetRole
+  },
+
+  runAnalysis: async () => {
+    const { data } = await apiClient.post('/dashboard/analyze', null, { timeout: 180_000 })
+    return data
+  },
 }

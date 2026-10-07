@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from typing import Any, Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -98,18 +101,44 @@ class DashboardActivity(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TargetRoleRequest(BaseModel):
+    targetRole: str = Field(min_length=2, max_length=100)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TargetRoleResponse(BaseModel):
+    targetRole: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SkillGapItem(BaseModel):
+    skill: str
+    priority: Literal["HIGH", "MEDIUM", "LOW"] = "MEDIUM"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DashboardAnalysisResponse(BaseModel):
+    targetRole: str
+    skillGap: list[SkillGapItem] = Field(default_factory=list)
+    matchedSkills: list[str] = Field(default_factory=list)
+    roadmap: dict[str, Any] | None = None
+    generatedAt: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class DashboardResponse(BaseModel):
     profile: DashboardProfile
-    readiness: DashboardReadiness
-    careerMatches: list[DashboardCareerMatch] = Field(default_factory=list)
+    targetRole: str | None = None
+    hasResume: bool = False
+    parsedSkills: list[str] = Field(default_factory=list)
+    personalInfo: dict[str, Any] = Field(default_factory=dict)
     skillOverview: DashboardSkillOverview
     recommendedJobs: list[DashboardRecommendedJob] = Field(default_factory=list)
-    skillDemand: list[DashboardSkillDemandItem] = Field(default_factory=list)
-    learningProgress: DashboardLearningProgress
-    recommendedProjects: list[DashboardProject] = Field(default_factory=list)
-    certifications: list[DashboardCertification] = Field(default_factory=list)
-    recentActivity: list[DashboardActivity] = Field(default_factory=list)
     resumeScore: int | None = None
-    careerReadinessScore: int | None = None
+    lastAnalysis: DashboardAnalysisResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)

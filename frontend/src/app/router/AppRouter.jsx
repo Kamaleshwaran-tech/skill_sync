@@ -1,7 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 
 import { AuthLayout } from '@/features/auth/components/AuthLayout'
-import { CareerReadinessPage } from '@/features/career-readiness/pages/CareerReadinessPage'
 import { ForgotPasswordPage } from '@/features/auth/pages/ForgotPasswordPage'
 import { LoginPage } from '@/features/auth/pages/LoginPage'
 import { ProtectedRoutePlaceholder } from '@/features/auth/pages/ProtectedRoutePlaceholder'
@@ -32,7 +31,6 @@ export function AppRouter() {
             <Route path="job-matching" element={<JobMatchingPage />} />
             <Route path="skill-gap-analysis" element={<SkillGapAnalysisPage />} />
             <Route path="learning-roadmap" element={<LearningRoadmapPage />} />
-            <Route path="career-readiness" element={<CareerReadinessPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
