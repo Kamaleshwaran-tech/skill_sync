@@ -38,7 +38,7 @@ export function clearAuthTokens() {
 
 export const apiClient = axios.create({
   baseURL: env.apiBaseUrl || undefined,
-  timeout: 10_000,
+  timeout: 60_000,
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json',

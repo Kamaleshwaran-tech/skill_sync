@@ -63,6 +63,7 @@ export const resumeUploadService = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 120_000,
       onUploadProgress: (progressEvent) => {
         if (typeof onProgress === 'function' && progressEvent.total) {
           const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -72,15 +73,22 @@ export const resumeUploadService = {
       signal,
     })
 
-    // Trigger AI analysis on uploaded resume
+    // Kick off AI analysis (best-effort). Analysis can take several seconds for
+    // parsing + semantic job matching + Gemini calls, so we don't await it — the
+    // upload endpoint returns immediately and the analysis page will fetch the
+    // result (or retry) when the user navigates there.
     if (data?.id) {
-      await apiClient.post(`/resumes/${data.id}/analyze`)
+      apiClient.post(`/resumes/${data.id}/analyze`, null, { timeout: 180_000 })
+        .catch((err) => {
+          // Non-fatal: resume is saved; analysis can be retried from the results page.
+          console.warn('Resume analysis request failed:', err?.response?.data?.detail || err?.message)
+        })
     }
 
     return {
       id: data.id,
       fileName: data.filename || file.name,
-      status: 'ready-for-review',
+      status: 'processing',
     }
   },
 

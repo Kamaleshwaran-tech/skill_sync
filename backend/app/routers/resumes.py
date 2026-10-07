@@ -255,7 +255,7 @@ def analyze_resume(resume_id: int, db: Session = Depends(get_db_session), curren
         exp_list = profile.get("experience") or []
         exp_score = float(min(round(len(exp_list) * 25.0 + 40.0), 90)) if exp_list else 65.0
 
-        active_jobs = db.query(Job).filter(Job.is_active.is_(True)).order_by(Job.created_at.desc()).limit(15).all()
+        active_jobs = db.query(Job).filter(Job.is_active.is_(True)).order_by(Job.created_at.desc()).limit(5).all()
         ind_score = 75.0
         if active_jobs:
             from app.services.semantic_job_matching import SemanticJobMatchingService
@@ -302,6 +302,13 @@ def analyze_resume(resume_id: int, db: Session = Depends(get_db_session), curren
         db.commit()
         db.refresh(resume)
         return resume
+    except ValueError as exc:
+        # Expected validation failures (e.g. insufficient text, bad PDF) → 400
+        db.rollback()
+        resume.status = "FAILED"
+        db.add(resume)
+        db.commit()
+        raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         # mark failed
         import traceback

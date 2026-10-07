@@ -40,7 +40,9 @@ class GeminiEmbeddingService:
             f"{self.settings.gemini_embedding_model}:embedContent?key={self.settings.gemini_api_key}"
         )
         try:
-            with httpx.Client(timeout=min(self.settings.gemini_timeout_seconds, 8.0)) as client:
+            # Cap at 4s so slow/high-demand Gemini responses fail fast and the
+            # deterministic TF-IDF fallback kicks in immediately.
+            with httpx.Client(timeout=4.0) as client:
                 response = client.post(url, json={"content": {"parts": [{"text": text}]}})
                 response.raise_for_status()
             values = response.json().get("embedding", {}).get("values", [])

@@ -76,7 +76,7 @@ class GeminiLLMProvider(LLMExplanationProviderInterface):
             return None
         url = f"{self.base_url.rstrip('/')}/models/{self.model}:generateContent?key={self.api_key}"
         try:
-            with httpx.Client(timeout=8.0) as client:
+            with httpx.Client(timeout=6.0) as client:
                 res = client.post(
                     url,
                     json={"contents": [{"parts": [{"text": prompt}]}]},
