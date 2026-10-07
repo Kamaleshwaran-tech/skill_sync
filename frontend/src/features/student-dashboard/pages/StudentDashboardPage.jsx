@@ -6,7 +6,7 @@ import {
   CloudUpload,
   PsychologyAlt,
   School,
-  WorkOutline,
+  WorkOutlineRounded,
 } from '@mui/icons-material'
 import {
   Alert,
@@ -124,7 +124,7 @@ function TargetRoleCard({ targetRole, onSave, saving }) {
     <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 3 }}>
       <CardContent sx={{ p: 3 }}>
         <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
-          <WorkOutline color="primary" />
+          <WorkOutlineRounded color="primary" />
           <Typography variant="h6" sx={{ fontWeight: 800 }}>Target role</Typography>
         </Stack>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
