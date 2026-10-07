@@ -1,0 +1,13 @@
+# Backend runtime data and credentials
+backend/.env
+backend/.venv/
+backend/*.db
+backend/.pytest_cache/
+backend/.pytest-*/
+backend/storage/
+
+# Frontend build and dependencies
+frontend/node_modules/
+frontend/dist/
+frontend/.vite-build/
+frontend/.env.local
