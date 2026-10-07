@@ -9,7 +9,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = Field(default="SkillSync AI")
-    app_version: str = Field(default="0.1.0")
+    app_version: str = Field(default="0.2.0")
     environment: str = Field(default="development")
     debug: bool = Field(default=False)
     api_prefix: str = Field(default="/api/v1")
