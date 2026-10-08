@@ -15,7 +15,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     full_name: Optional[str] = None
-    role: Literal["CANDIDATE", "EMPLOYER"] = "CANDIDATE"
+    role: Literal["CANDIDATE"] = "CANDIDATE"
 
     model_config = BaseConfig.model_config
 

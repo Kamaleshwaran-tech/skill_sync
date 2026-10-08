@@ -15,7 +15,6 @@ class ResumeOut(BaseModel):
     id: int
     user_id: int
     filename: str
-    storage_path: Optional[str]
     file_type: str
     file_size: Optional[int]
     status: str

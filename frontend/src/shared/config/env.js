@@ -7,6 +7,6 @@ function normalizeBaseUrl(value) {
 }
 
 export const env = Object.freeze({
-  appName: getOptionalValue(import.meta.env.VITE_APP_NAME) ?? 'SkillSync AI',
+  appName: getOptionalValue(import.meta.env.VITE_APP_NAME) ?? 'SkillSync',
   apiBaseUrl: normalizeBaseUrl(import.meta.env.VITE_API_BASE_URL) ?? '/api/v1',
 })

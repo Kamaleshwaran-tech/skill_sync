@@ -19,7 +19,7 @@ from sqlalchemy import (
     func,
     JSON,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, backref, mapped_column, relationship
 
 from app.database.base import Base
 
@@ -60,6 +60,7 @@ class Resume(Base):
     file_type: Mapped[str] = mapped_column(String(32), nullable=False)
     file_size: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="UPLOADED")
+    processing_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     parsed_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -406,7 +407,7 @@ class EmployerProfile(Base):
     phone: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    user = relationship("User", backref="employer_profile")
+    user = relationship("User", backref=backref("employer_profile", uselist=False))
     company = relationship("Company", back_populates="employers")
 
 
@@ -502,3 +503,14 @@ Index("ix_users_email", User.email)
 Index("ix_skills_name", Skill.name)
 Index("ix_jobs_posted", Job.posted_date)
 
+
+
+class ResumeMatchRun(Base):
+    """Immutable matching result tied to one resume analysis, not account-wide skills."""
+    __tablename__ = "resume_match_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    resume_id: Mapped[int] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"), nullable=False, index=True)
+    analysis_id: Mapped[int] = mapped_column(ForeignKey("resume_analyses.id", ondelete="CASCADE"), nullable=False)
+    result: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
