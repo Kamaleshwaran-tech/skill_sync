@@ -1,3 +1,4 @@
+import ResumeAnalysisPanel from "./features/resume-analysis/components/ResumeAnalysisPanel";
 import JobDetails, { SkillSummary } from "./JobDetails";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -14,6 +15,16 @@ import {
   safeLink,
   isEvidenceAnalysis,
 } from "./core";
+
+function BuildIdentifier() {
+  return (
+    <span className="build-identifier">
+      Interface: screenshot-fixes-v1 · Build{" "}
+      {import.meta.env.VITE_SKILLSYNC_BUILD?.sourceHash?.slice(0, 8) ||
+        "development"}
+    </span>
+  );
+}
 
 function Brand() {
   return (
@@ -171,7 +182,9 @@ function Authentication({ onLogin }) {
           </small>
         </section>
       </main>
-      <footer>SkillSync · Focused on resume-to-job matching</footer>
+      <footer>
+        SkillSync · Focused on resume-to-job matching <BuildIdentifier />
+      </footer>
     </div>
   );
 }
@@ -236,39 +249,45 @@ function ResumeEvidence({ analysis }) {
 function JobCard({ job, rank, onDetails }) {
   const url = safeLink(job.application_url);
   return (
-    <article className="job-card">
-      <div className="job-top">
-        <div className="job-identity">
-          <span className="rank">{String(rank).padStart(2, "0")}</span>
-          <div>
-            <span className="company">
-              {job.company || "Company not supplied"}
-            </span>
-            <h3>{job.title}</h3>
-            <div className="job-meta">
-              <span>⌖ {job.location || "Location not supplied"}</span>
-              <span>
-                {job.contract_time?.replaceAll("_", " ") ||
-                  "Hours not supplied"}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="score">
-          <strong>
-            {job.match_score}
-            <small>/100</small>
-          </strong>
-          <span>{job.match_label}</span>
-        </div>
+    <article className="job-card screenshot-job-card">
+      <div className="screenshot-job-header">
+        <h3>{job.title}</h3>
+        <span className="rank" aria-label={`Result ${rank}`}>
+          {String(rank).padStart(2, "0")}
+        </span>
       </div>
-      <div className="score-track">
-        <span style={{ width: `${job.match_score}%` }} />
+      <p className="screenshot-company">
+        ▦ <span>{job.company || "Company not supplied"}</span>
+      </p>
+      <div className="screenshot-job-meta">
+        <p>
+          ⌖ <span>{job.location || "Location not supplied"}</span>
+        </p>
+        <p>
+          ▣{" "}
+          <span>
+            {job.contract_time?.replaceAll("_", " ") ||
+              "Working hours not supplied"}
+          </span>
+        </p>
       </div>
       <p className="salary">{formatSalary(job)}</p>
-      <p className="job-snippet">
-        {job.description || "No description supplied by Adzuna."}
-      </p>
+      <div className="screenshot-score-row">
+        <span className="muted small">
+          Posted{" "}
+          {job.posted_at
+            ? new Date(job.posted_at).toLocaleDateString()
+            : "date unavailable"}
+        </span>
+        <strong className="match-percentage">{job.match_score}%</strong>
+        <span className="match-badge">Match</span>
+        <span className="muted small">{job.match_label}</span>
+      </div>
+      <div className="screenshot-description">
+        <p className="job-snippet">
+          {job.description || "No description supplied by Adzuna."}
+        </p>
+      </div>
       <SkillSummary job={job} />
       <details className="match-details">
         <summary>
@@ -313,16 +332,10 @@ function JobCard({ job, rank, onDetails }) {
           </p>
         ))}
       </details>
-      <div className="job-bottom">
-        <span className="muted small">
-          Posted{" "}
-          {job.posted_at
-            ? new Date(job.posted_at).toLocaleDateString()
-            : "date unavailable"}
-        </span>
+      <div className="job-bottom screenshot-card-actions">
         <button
           type="button"
-          className="secondary small-button job-details-button"
+          className="screenshot-details-button"
           aria-haspopup="dialog"
           onClick={() => onDetails(job)}
         >
@@ -330,15 +343,17 @@ function JobCard({ job, rank, onDetails }) {
         </button>
         {url ? (
           <a
-            className="apply-link"
+            className="screenshot-apply-button"
             href={url}
             target="_blank"
             rel="noopener noreferrer"
           >
-            View on Adzuna ↗
+            Apply ↗
           </a>
         ) : (
-          <span className="muted small">Application link unavailable</span>
+          <span className="screenshot-link-unavailable">
+            Application link unavailable
+          </span>
         )}
       </div>
     </article>
@@ -347,6 +362,17 @@ function JobCard({ job, rank, onDetails }) {
 
 function Workspace({ user, onLogout }) {
   const [resumes, setResumes] = useState([]);
+  const [section, setSection] = useState(() =>
+    window.location.hash === "#resume-analysis" ||
+    window.location.pathname.includes("/resume-analysis")
+      ? "resume-analysis"
+      : "job-matching",
+  );
+  function changeSection(next) {
+    setSection(next);
+    window.history.replaceState(null, "", `#${next}`);
+  }
+
   const [detailJob, setDetailJob] = useState(null);
   const [provider, setProvider] = useState(null);
   const [selectedId, setSelectedId] = useState("");
@@ -599,6 +625,24 @@ function Workspace({ user, onLogout }) {
             <span className="spinner" /> {busy}
           </Notice>
         )}
+        <nav className="workspace-sections" aria-label="Workspace sections">
+          <button
+            type="button"
+            className={section === "resume-analysis" ? "active" : ""}
+            aria-current={section === "resume-analysis" ? "page" : undefined}
+            onClick={() => changeSection("resume-analysis")}
+          >
+            Resume analysis
+          </button>
+          <button
+            type="button"
+            className={section === "job-matching" ? "active" : ""}
+            aria-current={section === "job-matching" ? "page" : undefined}
+            onClick={() => changeSection("job-matching")}
+          >
+            Job matching
+          </button>
+        </nav>
         <div className="workspace-grid">
           <aside className="resume-panel">
             <div className="panel-heading">
@@ -669,7 +713,9 @@ function Workspace({ user, onLogout }) {
                 </div>
               </>
             )}
-            {analysis && <ResumeEvidence analysis={analysis} />}
+            {analysis && section === "job-matching" && (
+              <ResumeEvidence analysis={analysis} />
+            )}
             {!analysis && !resumes.length && (
               <div className="empty-resume">
                 <span>◈</span>
@@ -681,202 +727,214 @@ function Workspace({ user, onLogout }) {
             )}
           </aside>
           <section className="results-column">
-            <div className="search-panel">
-              <div className="panel-heading">
-                <span className="step-dot">2</span>
-                <h2>Find current openings</h2>
-              </div>
-              <form ref={searchRef} onSubmit={search}>
-                <div className="search-primary">
-                  <label>
-                    Job title or keywords
-                    <input
-                      aria-label="Job title or keywords"
-                      value={query}
-                      onChange={(event) => setQuery(event.target.value)}
-                      placeholder="e.g. Python developer"
-                      maxLength={120}
-                      disabled={!!busy}
-                      required
-                    />
-                  </label>
-                  <label>
-                    <span>
-                      Location <small>optional</small>
-                    </span>
-                    <input
-                      aria-label="Location"
-                      value={location}
-                      onChange={(event) => setLocation(event.target.value)}
-                      placeholder="City or region"
-                      maxLength={120}
-                      disabled={!!busy}
-                    />
-                  </label>
-                </div>
-                <div className="search-secondary">
-                  <label>
-                    Country
-                    <select
-                      value={country}
-                      onChange={(event) => setCountry(event.target.value)}
-                      disabled={!!busy}
-                    >
-                      {Object.entries(
-                        provider?.countries || { in: "India" },
-                      ).map(([code, name]) => (
-                        <option value={code} key={code}>
-                          {name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    Posted within
-                    <select
-                      value={maxDays}
-                      onChange={(event) =>
-                        setMaxDays(Number(event.target.value))
-                      }
-                      disabled={!!busy}
-                    >
-                      <option value={7}>7 days</option>
-                      <option value={30}>30 days</option>
-                      <option value={90}>90 days</option>
-                    </select>
-                  </label>
-                  <label>
-                    Jobs to compare
-                    <select
-                      value={limit}
-                      onChange={(event) => setLimit(Number(event.target.value))}
-                      disabled={!!busy}
-                    >
-                      <option value={20}>Up to 20</option>
-                      <option value={50}>Up to 50</option>
-                      <option value={100}>Up to 100</option>
-                    </select>
-                  </label>
-                  <button
-                    className="primary search-button"
-                    disabled={
-                      !currentAnalysis ||
-                      !provider?.configured ||
-                      !!busy ||
-                      loading
-                    }
-                  >
-                    {busy.startsWith("Fetching") ? "Matching…" : "Find matches"}{" "}
-                    <span>↗</span>
-                  </button>
-                </div>
-              </form>
-              <small className="muted">
-                The suggested query comes from extracted skills and is editable.
-                All fetched jobs are scored together, then ranked.
-              </small>
-            </div>
-            {results ? (
+            {section === "resume-analysis" ? (
+              <ResumeAnalysisPanel analysis={analysis}>
+                {analysis && <ResumeEvidence analysis={analysis} />}
+              </ResumeAnalysisPanel>
+            ) : (
               <>
-                <div className="results-heading">
-                  <div>
-                    <span className="eyebrow">3 · YOUR SHORTLIST</span>
-                    <h2>{results.scored_count} jobs compared</h2>
-                    <p className="muted small">
-                      {results.from_saved_search
-                        ? "Saved search"
-                        : results.provider === "adzuna"
-                          ? "Fetched from Adzuna"
-                          : "Test fixtures — not live"}{" "}
-                      · {formattedDate(results.fetched_at)}
-                    </p>
+                <div className="search-panel">
+                  <div className="panel-heading">
+                    <span className="step-dot">2</span>
+                    <h2>Find current openings</h2>
                   </div>
-                  <label className="score-filter">
-                    Minimum score
-                    <select
-                      value={minScore}
-                      onChange={(event) =>
-                        setMinScore(Number(event.target.value))
-                      }
-                    >
-                      <option value={0}>Show all</option>
-                      <option value={45}>45+</option>
-                      <option value={75}>75+</option>
-                    </select>
-                  </label>
+                  <form ref={searchRef} onSubmit={search}>
+                    <div className="search-primary">
+                      <label>
+                        Job title or keywords
+                        <input
+                          aria-label="Job title or keywords"
+                          value={query}
+                          onChange={(event) => setQuery(event.target.value)}
+                          placeholder="e.g. Python developer"
+                          maxLength={120}
+                          disabled={!!busy}
+                          required
+                        />
+                      </label>
+                      <label>
+                        <span>
+                          Location <small>optional</small>
+                        </span>
+                        <input
+                          aria-label="Location"
+                          value={location}
+                          onChange={(event) => setLocation(event.target.value)}
+                          placeholder="City or region"
+                          maxLength={120}
+                          disabled={!!busy}
+                        />
+                      </label>
+                    </div>
+                    <div className="search-secondary">
+                      <label>
+                        Country
+                        <select
+                          value={country}
+                          onChange={(event) => setCountry(event.target.value)}
+                          disabled={!!busy}
+                        >
+                          {Object.entries(
+                            provider?.countries || { in: "India" },
+                          ).map(([code, name]) => (
+                            <option value={code} key={code}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        Posted within
+                        <select
+                          value={maxDays}
+                          onChange={(event) =>
+                            setMaxDays(Number(event.target.value))
+                          }
+                          disabled={!!busy}
+                        >
+                          <option value={7}>7 days</option>
+                          <option value={30}>30 days</option>
+                          <option value={90}>90 days</option>
+                        </select>
+                      </label>
+                      <label>
+                        Jobs to compare
+                        <select
+                          value={limit}
+                          onChange={(event) =>
+                            setLimit(Number(event.target.value))
+                          }
+                          disabled={!!busy}
+                        >
+                          <option value={20}>Up to 20</option>
+                          <option value={50}>Up to 50</option>
+                          <option value={100}>Up to 100</option>
+                        </select>
+                      </label>
+                      <button
+                        className="primary search-button"
+                        disabled={
+                          !currentAnalysis ||
+                          !provider?.configured ||
+                          !!busy ||
+                          loading
+                        }
+                      >
+                        {busy.startsWith("Fetching")
+                          ? "Matching…"
+                          : "Find matches"}{" "}
+                        <span>↗</span>
+                      </button>
+                    </div>
+                  </form>
+                  <small className="muted">
+                    The suggested query comes from extracted skills and is
+                    editable. All fetched jobs are scored together, then ranked.
+                  </small>
                 </div>
-                <p className="scope-note">
-                  {results.score_notice} We fetched {results.fetched_count}{" "}
-                  listings for this query
-                  {results.skipped_count
-                    ? ` and excluded ${results.skipped_count} duplicate, outdated or invalid listings`
-                    : ""}
-                  . This is not the entire job market.
-                </p>
-                {results.from_saved_search && (
-                  <Notice>
-                    These are saved results, not a live availability check. Use
-                    Find matches to fetch a fresh set.
-                  </Notice>
-                )}
-                {visibleJobs.length ? (
-                  visibleJobs.map((job, index) => (
-                    <JobCard
-                      key={job.id}
-                      job={job}
-                      rank={index + 1}
-                      onDetails={setDetailJob}
-                    />
-                  ))
+                {results ? (
+                  <>
+                    <div className="results-heading">
+                      <div>
+                        <span className="eyebrow">3 · YOUR SHORTLIST</span>
+                        <h2>{results.scored_count} jobs compared</h2>
+                        <p className="muted small">
+                          {results.from_saved_search
+                            ? "Saved search"
+                            : results.provider === "adzuna"
+                              ? "Fetched from Adzuna"
+                              : "Test fixtures — not live"}{" "}
+                          · {formattedDate(results.fetched_at)}
+                        </p>
+                      </div>
+                      <label className="score-filter">
+                        Minimum score
+                        <select
+                          value={minScore}
+                          onChange={(event) =>
+                            setMinScore(Number(event.target.value))
+                          }
+                        >
+                          <option value={0}>Show all</option>
+                          <option value={45}>45+</option>
+                          <option value={75}>75+</option>
+                        </select>
+                      </label>
+                    </div>
+                    <p className="scope-note">
+                      {results.score_notice} We fetched {results.fetched_count}{" "}
+                      listings for this query
+                      {results.skipped_count
+                        ? ` and excluded ${results.skipped_count} duplicate, outdated or invalid listings`
+                        : ""}
+                      . This is not the entire job market.
+                    </p>
+                    {results.from_saved_search && (
+                      <Notice>
+                        These are saved results, not a live availability check.
+                        Use Find matches to fetch a fresh set.
+                      </Notice>
+                    )}
+                    {visibleJobs.length ? (
+                      visibleJobs.map((job, index) => (
+                        <JobCard
+                          key={job.id}
+                          job={job}
+                          rank={index + 1}
+                          onDetails={setDetailJob}
+                        />
+                      ))
+                    ) : (
+                      <div className="empty-state">
+                        <span>⌕</span>
+                        <h3>
+                          {results.jobs.length
+                            ? "No results meet this score filter"
+                            : "No current results for this search"}
+                        </h3>
+                        <p>
+                          Try another keyword, nearby city or a broader date
+                          range. No results is different from a provider error.
+                        </p>
+                      </div>
+                    )}
+                    <p className="adzuna-credit">
+                      Job advertisements supplied by{" "}
+                      <a
+                        href="https://www.adzuna.com"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Adzuna ↗
+                      </a>
+                      . Check the full listing before applying.
+                    </p>
+                  </>
                 ) : (
                   <div className="empty-state">
                     <span>⌕</span>
-                    <h3>
-                      {results.jobs.length
-                        ? "No results meet this score filter"
-                        : "No current results for this search"}
-                    </h3>
+                    <h2>
+                      {loading
+                        ? "Loading your workspace…"
+                        : busy
+                          ? "Working on your next step"
+                          : "Your shortlist starts here"}
+                    </h2>
                     <p>
-                      Try another keyword, nearby city or a broader date range.
-                      No results is different from a provider error.
+                      Upload a readable resume, review its extracted evidence,
+                      then find current Adzuna openings. Scores explain overlap,
+                      not a guaranteed offer.
                     </p>
+                    <div className="empty-steps">
+                      <span>RESUME EVIDENCE</span>
+                      <b>→</b>
+                      <span>CURRENT JOBS</span>
+                      <b>→</b>
+                      <span>RANKED MATCHES</span>
+                    </div>
                   </div>
                 )}
-                <p className="adzuna-credit">
-                  Job advertisements supplied by{" "}
-                  <a
-                    href="https://www.adzuna.com"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Adzuna ↗
-                  </a>
-                  . Check the full listing before applying.
-                </p>
               </>
-            ) : (
-              <div className="empty-state">
-                <span>⌕</span>
-                <h2>
-                  {loading
-                    ? "Loading your workspace…"
-                    : busy
-                      ? "Working on your next step"
-                      : "Your shortlist starts here"}
-                </h2>
-                <p>
-                  Upload a readable resume, review its extracted evidence, then
-                  find current Adzuna openings. Scores explain overlap, not a
-                  guaranteed offer.
-                </p>
-                <div className="empty-steps">
-                  <span>RESUME EVIDENCE</span>
-                  <b>→</b>
-                  <span>CURRENT JOBS</span>
-                  <b>→</b>
-                  <span>RANKED MATCHES</span>
-                </div>
-              </div>
             )}
           </section>
         </div>
@@ -889,6 +947,7 @@ function Workspace({ user, onLogout }) {
       <footer>
         SkillSync · Your resume, matched with evidence{" "}
         <span>No invented skills. No guaranteed “perfect” matches.</span>
+        <BuildIdentifier />
       </footer>
     </>
   );

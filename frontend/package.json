@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "node --test tests/*.test.mjs"
+    "test": "node --test tests/*.test.mjs",
+    "prepreview": "node scripts/ensure-current-build.mjs"
   },
   "dependencies": {
     "axios": "^1.20.0",

@@ -144,6 +144,67 @@ with sync_playwright() as p:
             "Mobile popup fits without horizontal overflow",
         ]
     )
+    # Test the restored screenshot-style analysis page with explicit synthetic
+    # scores supplied only by the browser fixture. Never manufacture live ratings.
+    page.get_by_role("button", name="Resume analysis", exact=True).click()
+    expect(
+        page.get_by_role("heading", name="Extracted personal information")
+    ).to_be_visible()
+    expect(page.locator(".resume-score-value")).to_have_text("—")
+    expect(
+        page.get_by_role("region", name="Resume quality score", exact=True)
+    ).to_contain_text("Not assessed")
+    supplied_score = {"value": 0}
+
+    def score_fixture(route):
+        response = route.fetch()
+        payload = response.json()
+        payload["profile"]["resume_quality_score"] = supplied_score["value"]
+        route.fulfill(response=response, json=payload)
+
+    page.route("**/resumes/*/analysis", score_fixture)
+    for value in [0, 92, 100]:
+        supplied_score["value"] = value
+        page.reload()
+        expect(page.locator(".resume-score-value")).to_have_text(str(value))
+        for width, height in [(1440, 1000), (390, 844)]:
+            page.set_viewport_size({"width": width, "height": height})
+            ring = page.locator(".resume-score-ring").bounding_box()
+            label = page.locator(".resume-score-value").bounding_box()
+            assert (
+                abs((ring["x"] + ring["width"] / 2) - (label["x"] + label["width"] / 2))
+                < 0.75
+            ), "Score is not horizontally centered"
+            assert (
+                abs(
+                    (ring["y"] + ring["height"] / 2)
+                    - (label["y"] + label["height"] / 2)
+                )
+                < 0.75
+            ), "Score is not vertically centered"
+            assert page.evaluate(
+                "document.documentElement.scrollWidth <= window.innerWidth+2"
+            ), "Analysis mobile overflow"
+            if value == 92 and width == 1440:
+                page.get_by_role(
+                    "region", name="Resume quality score", exact=True
+                ).screenshot(
+                    path=str(
+                        Path.home() / ".cache" / "skillsync-centered-score-fixture.png"
+                    )
+                )
+    page.unroute("**/resumes/*/analysis", score_fixture)
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    page.get_by_role("button", name="Job matching", exact=True).click()
+    expect(page.locator(".build-identifier")).to_contain_text("screenshot-fixes-v1")
+    checks.extend(
+        [
+            "Purple screenshot-style cards and analysis view are active",
+            "Resume score centered within 0.75px at 0, 92 and 100 on desktop and mobile",
+            "Absent quality score remains unknown rather than a fabricated default",
+            "Visible build identifier identifies the corrected interface",
+        ]
+    )
     page.reload()
     expect(
         page.get_by_text(

@@ -1,3 +1,4 @@
+import { normaliseResumeScore } from "../src/core.js";
 import { getSkillSummary } from "../src/core.js";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -105,4 +106,11 @@ test("unknown skill evidence is not invented as a match or a gap", () => {
     }),
     { matched: [], missing: [] },
   );
+});
+
+test("resume gauge uses only an explicit valid score, never a made-up default", () => {
+  for (const value of [null, undefined, "", NaN, Infinity, -1, 101, "92"])
+    assert.equal(normaliseResumeScore(value), null);
+  for (const value of [0, 92, 100])
+    assert.equal(normaliseResumeScore(value), value);
 });

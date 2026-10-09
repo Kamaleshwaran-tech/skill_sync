@@ -1176,3 +1176,306 @@ footer {
     margin-left: 0;
   }
 }
+
+/* Preserve the purple cards and resume-analysis layout shown in the screenshots. */
+:root {
+  background: #f7f7fc;
+  color: #191b27;
+}
+.brand-icon,
+.primary,
+.search-button {
+  background: #514ef0;
+}
+.brand-dot,
+.hero em,
+.apply-link {
+  color: #514ef0;
+}
+.workspace-sections {
+  display: flex;
+  gap: 10px;
+  margin: 0 0 22px;
+  flex-wrap: wrap;
+}
+.workspace-sections button {
+  background: white;
+  border: 1px solid #dedeea;
+  border-radius: 9px;
+  padding: 12px 20px;
+  color: #53536b;
+  font-weight: 650;
+}
+.workspace-sections button.active {
+  background: #514ef0;
+  border-color: #514ef0;
+  color: white;
+}
+.screenshot-job-card {
+  border: 1px solid #dcddea;
+  border-radius: 24px;
+  padding: 25px;
+  background: white;
+  box-shadow: 0 6px 22px #3434590c;
+}
+.screenshot-job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+.screenshot-job-header h3 {
+  font-size: 21px;
+  line-height: 1.4;
+  margin: 0 0 20px;
+}
+.screenshot-job-header .rank {
+  background: #efeffc;
+  color: #514ef0;
+}
+.screenshot-company {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 14px;
+  color: #68728a;
+}
+.screenshot-job-meta p {
+  display: flex;
+  gap: 12px;
+  font-size: 14px;
+  margin: 13px 0;
+}
+.screenshot-job-card .salary {
+  font-size: 14px;
+  font-weight: 400;
+}
+.screenshot-score-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 15px 0 20px;
+}
+.match-percentage {
+  display: inline-grid;
+  place-items: center;
+  background: #6356df;
+  color: white;
+  padding: 10px 13px;
+  border-radius: 24px;
+  font-size: 13px;
+}
+.match-badge {
+  padding: 5px 10px;
+  border: 1px solid #d9d9e2;
+  border-radius: 9px;
+  font-size: 12px;
+}
+.screenshot-description {
+  border-top: 1px solid #e5e5f0;
+  padding-top: 16px;
+}
+.screenshot-job-card .job-skill-summary {
+  border-bottom: 1px solid #e5e5f0;
+  padding-bottom: 20px;
+}
+.screenshot-job-card .job-skill-summary h4 {
+  font-weight: 550;
+  font-size: 13px;
+}
+.screenshot-job-card .matched {
+  color: #118159;
+  background: white;
+  border: 1px solid #91c9b0;
+}
+.screenshot-job-card .missing {
+  color: #93600c;
+  background: #fff7e9;
+  border: 1px solid #e8c991;
+}
+.screenshot-card-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.screenshot-details-button,
+.screenshot-apply-button,
+.screenshot-link-unavailable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 650;
+}
+.screenshot-details-button {
+  border: 1px solid #b2afff;
+  color: #514ef0;
+  background: white;
+}
+.screenshot-details-button:hover {
+  background: #f4f3ff;
+}
+.screenshot-apply-button {
+  border: 1px solid #514ef0;
+  color: white;
+  background: #514ef0;
+  text-decoration: none;
+}
+.screenshot-apply-button:hover {
+  background: #423dd0;
+}
+.screenshot-link-unavailable {
+  background: #f4f4f8;
+  color: #6d6d80;
+  font-size: 12px;
+}
+.job-dialog-header {
+  color: #191b27;
+}
+.dialog-match {
+  background: #f2f1ff;
+}
+.dialog-match > strong,
+.dialog-close {
+  color: #514ef0;
+}
+.dialog-close {
+  background: #f2f1ff;
+  border-color: #e4e2f8;
+}
+.resume-analysis-page {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.personal-info-card,
+.resume-score-card,
+.analysis-evidence-card {
+  background: white;
+  border: 1px solid #e0e2ef;
+  border-radius: 14px;
+  padding: 24px;
+  min-width: 0;
+}
+.personal-info-card h2 {
+  margin: 0 0 24px;
+  font-size: 22px;
+}
+.personal-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr));
+  gap: 14px;
+}
+.personal-info-item {
+  border: 1px solid #e4e5ef;
+  border-radius: 22px;
+  padding: 18px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.personal-info-item > div {
+  min-width: 0;
+}
+.personal-info-item p {
+  margin: 7px 0 0;
+  font-size: 14px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.personal-info-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #514ef0;
+  color: white;
+  font-size: 18px;
+}
+.resume-analysis-grid {
+  display: grid;
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.resume-score-card {
+  text-align: center;
+}
+.resume-score-value {
+  color: #191b27;
+  font-size: 22px;
+  font-weight: 800;
+}
+.resume-score-card h3 {
+  margin: 23px 0 8px;
+  font-size: 19px;
+}
+.resume-score-card p {
+  line-height: 1.6;
+  margin: 0;
+}
+.analysis-evidence-card .evidence {
+  border: 0;
+  padding-top: 0;
+  margin-top: 0;
+}
+.build-identifier {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: #5d588b;
+}
+footer {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+@media (max-width: 1100px) {
+  .resume-analysis-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .resume-score-card {
+    max-width: 320px;
+    width: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .screenshot-job-card {
+    padding: 18px;
+    border-radius: 18px;
+  }
+  .screenshot-job-header h3 {
+    font-size: 19px;
+  }
+  .screenshot-card-actions {
+    gap: 8px;
+  }
+  .personal-info-card,
+  .analysis-evidence-card {
+    padding: 18px;
+  }
+}
+.page-heading h1 em,
+.brand-dot,
+.text-button:not(.danger) {
+  color: #514ef0;
+}
+.brand-icon span {
+  background: #514ef0;
+}
+.primary {
+  border-color: #514ef0;
+}
+.primary:hover:not(:disabled) {
+  background: #443ed8;
+  border-color: #443ed8;
+}
+.step-dot {
+  background: #f0efff;
+  color: #514ef0;
+}

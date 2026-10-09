@@ -69,3 +69,15 @@ export function getSkillSummary(job = {}) {
   ]);
   return { matched, missing };
 }
+
+// Missing/invalid scores stay unknown. Never substitute confidence or a fixed 88/92.
+export function normaliseResumeScore(value) {
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value) ||
+    value < 0 ||
+    value > 100
+  )
+    return null;
+  return Math.round(value * 10) / 10;
+}

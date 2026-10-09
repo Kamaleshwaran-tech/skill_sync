@@ -1,7 +1,7 @@
 """Launch one local service in the correct working directory.
 
 Two terminals: python scripts/run_local.py api / web.
-web serves the compiled frontend with /api proxying to the local API.
+web verifies/rebuilds the frontend before serving it, with /api proxying to the local API.
 For editing: use 'web-dev' (higher RAM consumption).
 """
 
@@ -43,10 +43,15 @@ else:
     npm = shutil.which("npm.cmd" if os.name == "nt" else "npm")
     if not npm:
         raise SystemExit("npm was not found. Install Node.js first.")
-    if args.service == "web" and not (cwd / "dist/index.html").exists():
+    if not (cwd / "node_modules/vite/package.json").exists():
         raise SystemExit(
-            "Frontend build missing. Run setup_local.py or 'npm run build' in frontend first."
+            "Frontend dependencies missing. Run setup_local.py or 'npm ci' in frontend first."
         )
+    print(f"Serving frontend source from: {cwd}", flush=True)
+    print(
+        "Expected footer: Interface: screenshot-fixes-v1. Preview rebuilds stale source automatically.",
+        flush=True,
+    )
     command = [
         npm,
         "run",

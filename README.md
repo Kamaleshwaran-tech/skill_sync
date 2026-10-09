@@ -90,11 +90,25 @@ Experience uses an explicit years-of-experience statement, or an estimate from m
 
 **A score is an overlap heuristic, not a probability of getting hired or a guaranteed perfect match.** Skill mention is not proof of proficiency. The taxonomy is strongest for technical roles; non-technical coverage and complex resume layouts are limited. Adzuna returns **description snippets**, so absence from a snippet/resume is not proof that a qualification is absent from the full document or person. Review the evidence and original vacancy before applying. No application is submitted automatically.
 
+## Confirm you are running the corrected interface
+
+The corrected purple interface displays **Interface: screenshot-fixes-v1 · Build …** in the footer, even on the sign-in page. If this marker is absent, you are looking at an older build or another running folder/process.
+
+Stop the old API/web terminals with Ctrl+C. Run setup and both launchers from this updated source folder; open http://localhost:5173 and press **Ctrl+Shift+R** once. The launcher prints its actual source folder. `npm run preview` / `run_local.py web` now compare the compiled build with the source and rebuild when stale; direct Vite preview refuses an outdated build. Do not delete private data or credentials to fix a display problem.
+
+See [UI_UPDATE_NOTES.md](UI_UPDATE_NOTES.md) for screenshot-specific causes and tests.
+
 ## Job cards and details
 
 Each job card has a **Details** button that opens a popup with the company, location, salary, working hours, contract type, posting date, experience mentioned, job snippet, matching score and skill comparisons. Close it with the close button, Escape or a click outside. Keyboard focus stays inside the popup and returns to the opening button.
 
 **Matched skills** and **Missing skills** are separate, always-visible sections on each card and inside the popup. Missing means not found in the selected resume, not proof the applicant lacks the skill; some missing mentions can be optional. If the snippet supplies no identifiable requirements, the UI says gaps cannot be determined rather than claiming a perfect match.
+
+## Resume analysis and the circular score
+
+Use **Resume analysis** to open the extracted personal-information cards and score panel; **Job matching** returns to the search and job cards. The circular value is centred inside the ring at every supported viewport size.
+
+The old interface labelled extraction confidence as a resume-quality score and supplied a default when it was missing. That is not a validated quality metric. The current backend does not calculate a resume-quality rating; the gauge displays **Not assessed / —** unless an explicit quality score is supplied. It never fabricates 88/92 or treats missing data as a perfect score.
 
 ## Tests
 
@@ -134,7 +148,7 @@ The test server has isolated temporary data and a prominent **TEST FIXTURES — 
 - Migrations preserve historical tables/data; additive migrations add `resume_match_runs` and a processing lease timestamp. Removed product modules do not have active endpoints. There is no destructive data-drop migration.
 - API docs: http://localhost:8000/api/v1/docs. Health: http://localhost:8000/api/v1/health.
 - Backend/frontend ports: 8000/5173. Frontend calls relative `/api/v1`; Vite proxies to the backend. Alternative API port: set `VITE_BACKEND_URL` for the web launcher.
-- For editing the frontend, use `python scripts/run_local.py web-dev`; rebuild before using `web` again.
+- For editing the frontend, use `python scripts/run_local.py web-dev`; `web` automatically rebuilds a stale/missing bundle before previewing.
 - Password-reset email and 2FA are not provided. Registration/login/refresh/logout are implemented. No default accounts are seeded.
 - Scanned PDFs need OCR (not included); encrypted PDFs, files over 5 MB, PDFs over 30 pages, expanded DOCX files over 25 MB and extracted text over 100,000 characters are rejected.
 - Interrupted extraction can be retried or deleted after its five-minute processing lease expires. A superseded worker cannot overwrite the new extraction.
