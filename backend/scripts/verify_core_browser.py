@@ -251,7 +251,8 @@ with sync_playwright() as p:
     page.get_by_label("Job title or keywords", exact=True).fill("provider-fail")
     page.get_by_role("button", name="Find matches", exact=False).click()
     expect(page.get_by_role("alert")).to_contain_text("Adzuna rejected")
-    expect(page.locator("article")).to_have_count(0)
+    expect(page.locator("article")).to_have_count(2)
+    expect(page.get_by_text("These are saved results, not a live availability check.",exact=False)).to_be_visible()
     page.get_by_label("Job title or keywords", exact=True).fill("no-results")
     page.get_by_role("button", name="Find matches", exact=False).click()
     expect(

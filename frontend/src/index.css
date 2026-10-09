@@ -1479,3 +1479,14 @@ footer {
   background: #f0efff;
   color: #514ef0;
 }
+/* Inactive views retain state but do not participate in layout/focus. */
+[hidden] {
+  display: none !important;
+}
+.show-more-jobs {
+  margin: 8px auto 24px;
+  display: block;
+}
+.resume-actions {
+  flex-wrap: wrap;
+}

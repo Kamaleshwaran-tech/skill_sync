@@ -1,6 +1,7 @@
 import ResumeAnalysisPanel from "./features/resume-analysis/components/ResumeAnalysisPanel";
 import JobDetails, { SkillSummary } from "./JobDetails";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createSessionCache } from "./sessionCache";
 import {
   apiClient,
   clearAuthTokens,
@@ -26,9 +27,21 @@ function BuildIdentifier() {
   );
 }
 
-function Brand() {
+function Brand({ onHome }) {
   return (
-    <a className="brand" href="/" aria-label="SkillSync home">
+    <a
+      className="brand"
+      href="/"
+      aria-label="SkillSync home"
+      onClick={
+        onHome
+          ? (event) => {
+              event.preventDefault();
+              onHome();
+            }
+          : undefined
+      }
+    >
       <span className="brand-icon">
         S<span>↗</span>
       </span>
@@ -189,7 +202,7 @@ function Authentication({ onLogin }) {
   );
 }
 
-function ResumeEvidence({ analysis }) {
+const ResumeEvidence = memo(function ResumeEvidence({ analysis }) {
   const profile = analysis.profile;
   return (
     <div className="evidence">
@@ -244,9 +257,10 @@ function ResumeEvidence({ analysis }) {
       ))}
     </div>
   );
-}
+});
 
-function JobCard({ job, rank, onDetails }) {
+const JobCard = memo(function JobCard({ job, rank, onDetails }) {
+  const [explanationOpen, setExplanationOpen] = useState(false);
   const url = safeLink(job.application_url);
   return (
     <article className="job-card screenshot-job-card">
@@ -289,48 +303,55 @@ function JobCard({ job, rank, onDetails }) {
         </p>
       </div>
       <SkillSummary job={job} />
-      <details className="match-details">
+      <details
+        className="match-details"
+        onToggle={(event) => setExplanationOpen(event.currentTarget.open)}
+      >
         <summary>
           Why this match? <span>View evidence + score breakdown</span>
         </summary>
-        <div className="comparison-list">
-          {job.comparisons.map((row) => (
-            <div className="comparison" key={row.skill}>
-              <strong>
-                {row.skill}{" "}
-                <small>
-                  ·{" "}
-                  {row.requirement_type === "mentioned"
-                    ? "mentioned, not an explicit requirement"
-                    : row.requirement_type}
-                </small>
-              </strong>
-              <p>Job: “{row.job_evidence}”</p>
-              <p>
-                Resume:{" "}
-                {row.found_in_resume
-                  ? `“${row.resume_evidence}”`
-                  : "Not found in this resume — not proof that you lack this skill."}
+        {explanationOpen && (
+          <>
+            <div className="comparison-list">
+              {job.comparisons.map((row) => (
+                <div className="comparison" key={row.skill}>
+                  <strong>
+                    {row.skill}{" "}
+                    <small>
+                      ·{" "}
+                      {row.requirement_type === "mentioned"
+                        ? "mentioned, not an explicit requirement"
+                        : row.requirement_type}
+                    </small>
+                  </strong>
+                  <p>Job: “{row.job_evidence}”</p>
+                  <p>
+                    Resume:{" "}
+                    {row.found_in_resume
+                      ? `“${row.resume_evidence}”`
+                      : "Not found in this resume — not proof that you lack this skill."}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="breakdown">
+              {job.score_breakdown.map((row) => (
+                <div className="fact" key={row.signal}>
+                  <span>{row.signal.replaceAll("_", " ")}</span>
+                  <span>
+                    {row.score}% × {Math.round(row.weight * 100)}% weight ={" "}
+                    <b>{row.contribution} pts</b>
+                  </span>
+                </div>
+              ))}
+            </div>
+            {job.warnings.map((warning) => (
+              <p className="muted small" key={warning}>
+                {warning}
               </p>
-            </div>
-          ))}
-        </div>
-        <div className="breakdown">
-          {job.score_breakdown.map((row) => (
-            <div className="fact" key={row.signal}>
-              <span>{row.signal.replaceAll("_", " ")}</span>
-              <span>
-                {row.score}% × {Math.round(row.weight * 100)}% weight ={" "}
-                <b>{row.contribution} pts</b>
-              </span>
-            </div>
-          ))}
-        </div>
-        {job.warnings.map((warning) => (
-          <p className="muted small" key={warning}>
-            {warning}
-          </p>
-        ))}
+            ))}
+          </>
+        )}
       </details>
       <div className="job-bottom screenshot-card-actions">
         <button
@@ -358,7 +379,7 @@ function JobCard({ job, rank, onDetails }) {
       </div>
     </article>
   );
-}
+});
 
 function Workspace({ user, onLogout }) {
   const [resumes, setResumes] = useState([]);
@@ -370,6 +391,11 @@ function Workspace({ user, onLogout }) {
   );
   function changeSection(next) {
     setSection(next);
+    setResults((previous) =>
+      previous && !previous.from_saved_search
+        ? { ...previous, from_saved_search: true }
+        : previous,
+    );
     window.history.replaceState(null, "", `#${next}`);
   }
 
@@ -377,7 +403,17 @@ function Workspace({ user, onLogout }) {
   const [provider, setProvider] = useState(null);
   const [selectedId, setSelectedId] = useState("");
   const [analysis, setAnalysis] = useState(null);
-  const [results, setResults] = useState(null);
+  const [savedResults, setResults] = useState(null);
+  const [cache] = useState(() => createSessionCache());
+  const [reloadVersion, setReloadVersion] = useState(0);
+  const [loadedMatchId, setLoadedMatchId] = useState(null);
+  const [visibleCount, setVisibleCount] = useState(20);
+  const formEdited = useRef(false);
+  const restoredSavedFilters = useRef(false);
+  const defaultCountry = useRef("in");
+  const searching = useRef(false);
+  // Guard UI callbacks too: a fulfilled GET callback can still be queued when a mutation wins.
+  const dataVersion = useRef({ analysis: 0, matches: 0 });
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [country, setCountry] = useState("in");
@@ -392,70 +428,170 @@ function Workspace({ user, onLogout }) {
   const searchRef = useRef(null);
   const selected = resumes.find((resume) => String(resume.id) === selectedId);
 
+  const selectedStatus = selected?.status;
+  const results =
+    savedResults?.resume_id === Number(selectedId) &&
+    savedResults?.analysis_id === analysis?.id
+      ? savedResults
+      : null;
+  const loadData = useCallback(
+    (key, path) =>
+      cache.load(
+        key,
+        async (signal) => (await apiClient.get(path, { signal })).data,
+      ),
+    [cache],
+  );
+  const restoreFields = useCallback((result) => {
+    if (!result || formEdited.current) return;
+    restoredSavedFilters.current = true;
+    setQuery(result.query);
+    setLocation(result.location);
+    setCountry(result.country);
+    setLimit(result.requested_limit);
+    setMaxDays(result.max_days);
+  }, []);
+  const selectResume = useCallback(
+    (id) => {
+      dataVersion.current.analysis++;
+      dataVersion.current.matches++;
+      const value = id ? String(id) : "";
+      const parsed = cache.peek(`analysis:${value}`)?.data;
+      const previous = cache.peek(`matches:${value}`)?.data?.result;
+      const valid = isEvidenceAnalysis(parsed);
+      const saved =
+        valid && previous?.analysis_id === parsed.id ? previous : null;
+      formEdited.current = false;
+      restoredSavedFilters.current = Boolean(saved);
+      setError("");
+      setDetailJob(null);
+      setSelectedId(value);
+      setMinScore(0);
+      setVisibleCount(20);
+      setAnalysis(valid ? parsed : null);
+      setResults(saved ? { ...saved, from_saved_search: true } : null);
+      setLoadedMatchId(cache.peek(`matches:${value}`) ? value : null);
+      setQuery(saved?.query || parsed?.profile?.suggested_query || "");
+      setLocation(saved?.location || "");
+      if (saved) restoreFields(saved);
+      else {
+        setCountry(defaultCountry.current);
+        setLimit(50);
+        setMaxDays(30);
+      }
+    },
+    [
+      cache,
+      restoreFields,
+      setDetailJob,
+      setSelectedId,
+      setAnalysis,
+      setResults,
+    ],
+  );
   useEffect(() => {
     let active = true;
-    Promise.all([apiClient.get("/resumes/"), apiClient.get("/jobs/status")])
-      .then(([resumeResponse, status]) => {
+    loadData("resumes", "/resumes/")
+      .then((data) => {
         if (!active) return;
-        setResumes(resumeResponse.data);
-        setProvider(status.data);
-        setCountry(status.data.country);
-        const first =
-          resumeResponse.data.find((resume) => resume.is_active) ||
-          resumeResponse.data[0];
-        if (first) setSelectedId(String(first.id));
+        setResumes(data);
+        selectResume((data.find((resume) => resume.is_active) || data[0])?.id);
       })
       .catch((err) => {
-        if (active) setError(errorMessage(err));
+        if (active && err.code !== "ERR_CANCELED") setError(errorMessage(err));
       })
       .finally(() => {
         if (active) setLoading(false);
       });
+    // Provider status must not hold up the resume list or analysis.
+    loadData("provider", "/jobs/status")
+      .then((status) => {
+        if (!active) return;
+        setProvider(status);
+        defaultCountry.current = status.country;
+        if (!formEdited.current && !restoredSavedFilters.current)
+          setCountry(status.country);
+      })
+      .catch((err) => {
+        if (active && err.code !== "ERR_CANCELED") setError(errorMessage(err));
+      });
     return () => {
       active = false;
+      cache.clear();
     };
-  }, []);
+  }, [loadData, selectResume, cache]);
 
   useEffect(() => {
     let active = true;
-    if (!selected || selected.status !== "COMPLETED")
+    if (!selectedId || selectedStatus !== "COMPLETED")
       return () => {
         active = false;
       };
-    Promise.all([
-      apiClient.get(`/resumes/${selected.id}/analysis`),
-      apiClient.get(`/jobs/matches/${selected.id}`),
-    ])
-      .then(([parsed, saved]) => {
-        if (!active) return;
-        if (!isEvidenceAnalysis(parsed.data)) {
+    const id = selectedId;
+    const analysisVersion = dataVersion.current.analysis;
+    const matchesVersion = dataVersion.current.matches;
+    const analysisActive = () =>
+      active && analysisVersion === dataVersion.current.analysis;
+    const matchesActive = () =>
+      active && matchesVersion === dataVersion.current.matches;
+    // Independent requests: analysis can render while saved jobs are still loading.
+    loadData(`analysis:${id}`, `/resumes/${id}/analysis`)
+      .then((parsed) => {
+        if (!analysisActive()) return;
+        if (!isEvidenceAnalysis(parsed)) {
           setAnalysis(null);
           setResults(null);
-          setQuery("");
           setError(
             "This resume uses the old parser. Select Analyse resume to extract fresh evidence before searching.",
           );
           return;
         }
-        setAnalysis(parsed.data);
-        setQuery(parsed.data.profile.suggested_query || "");
-        const result = saved.data.result;
-        if (result) {
-          setResults(result);
-          setQuery(result.query);
-          setLocation(result.location);
-          setCountry(result.country);
-          setLimit(result.requested_limit);
-          setMaxDays(result.max_days);
-        }
+        setAnalysis(parsed);
+        const saved = cache.peek(`matches:${id}`)?.data?.result;
+        if (saved?.analysis_id === parsed.id) restoreFields(saved);
+        else if (!formEdited.current)
+          setQuery(parsed.profile.suggested_query || "");
       })
       .catch((err) => {
-        if (active) setError(errorMessage(err));
+        if (!analysisActive() || err.code === "ERR_CANCELED") return;
+        if (err.response?.status === 404) {
+          cache.invalidate(`analysis:${id}`);
+          cache.invalidate(`matches:${id}`);
+          setAnalysis(null);
+          setResults(null);
+        }
+        setError(errorMessage(err));
+      });
+    loadData(`matches:${id}`, `/jobs/matches/${id}`)
+      .then((saved) => {
+        if (!matchesActive()) return;
+        setResults(
+          saved.result ? { ...saved.result, from_saved_search: true } : null,
+        );
+        const parsed = cache.peek(`analysis:${id}`)?.data;
+        if (saved.result?.analysis_id === parsed?.id)
+          restoreFields(saved.result);
+      })
+      .catch((err) => {
+        if (matchesActive() && err.code !== "ERR_CANCELED") {
+          if (err.response?.status === 404) setResults(null);
+          setError(errorMessage(err));
+        }
+      })
+      .finally(() => {
+        if (matchesActive()) setLoadedMatchId(id);
       });
     return () => {
       active = false;
     };
-  }, [selected]);
+  }, [
+    selectedId,
+    selectedStatus,
+    reloadVersion,
+    loadData,
+    cache,
+    restoreFields,
+  ]);
 
   // Automatic first search after a new upload, using only extracted technical keywords.
   useEffect(() => {
@@ -470,13 +606,38 @@ function Workspace({ user, onLogout }) {
     }
   }, [analysis, provider, busy]);
 
+  function invalidateResume(id) {
+    dataVersion.current.analysis++;
+    dataVersion.current.matches++;
+    cache.invalidate(`analysis:${id}`);
+    cache.invalidate(`matches:${id}`);
+  }
   async function refreshResumes(id) {
-    const { data } = await apiClient.get("/resumes/");
+    cache.invalidate("resumes");
+    const data = await loadData("resumes", "/resumes/");
     setResumes(data);
-    setAnalysis(null);
-    setResults(null);
-    setMinScore(0);
-    setSelectedId(id ? String(id) : data[0] ? String(data[0].id) : "");
+    selectResume(
+      data.some((row) => String(row.id) === String(id)) ? id : data[0]?.id,
+    );
+    setReloadVersion((value) => value + 1);
+  }
+  async function refreshSavedData() {
+    setBusy("Refreshing saved resume data…");
+    setError("");
+    invalidateResume(selectedId);
+    cache.invalidate("provider");
+    try {
+      await refreshResumes(selectedId);
+      const status = await loadData("provider", "/jobs/status");
+      defaultCountry.current = status.country;
+      if (!formEdited.current && !restoredSavedFilters.current)
+        setCountry(status.country);
+      setProvider(status);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy("");
+    }
   }
   async function upload(event) {
     const file = event.target.files?.[0];
@@ -521,6 +682,7 @@ function Workspace({ user, onLogout }) {
       await apiClient.post(`/resumes/${selectedId}/analyze`, null, {
         timeout: 120_000,
       });
+      invalidateResume(selectedId);
       await refreshResumes(selectedId);
     } catch (err) {
       setError(errorMessage(err));
@@ -535,6 +697,7 @@ function Workspace({ user, onLogout }) {
     setError("");
     try {
       await apiClient.delete(`/resumes/${selectedId}`);
+      invalidateResume(selectedId);
       await refreshResumes();
     } catch (err) {
       setError(errorMessage(err));
@@ -544,11 +707,20 @@ function Workspace({ user, onLogout }) {
   }
   async function search(event) {
     event.preventDefault();
-    if (!analysis || analysis.resume_id !== Number(selectedId)) return;
+    if (
+      !analysis ||
+      analysis.resume_id !== Number(selectedId) ||
+      searching.current
+    )
+      return;
+    searching.current = true;
     setBusy("Fetching current jobs and comparing your resume…");
     setError("");
-    setResults(null);
+    setResults((previous) =>
+      previous ? { ...previous, from_saved_search: true } : null,
+    );
     setMinScore(0);
+    setVisibleCount(20);
     try {
       const { data } = await apiClient.post(
         "/jobs/search",
@@ -562,27 +734,43 @@ function Workspace({ user, onLogout }) {
         },
         { timeout: 120_000 },
       );
+      dataVersion.current.matches++;
+      cache.put(`matches:${selectedId}`, {
+        result: { ...data, from_saved_search: true },
+      });
       setResults(data);
+      setLoadedMatchId(selectedId);
     } catch (err) {
-      setError(errorMessage(err));
+      setError(
+        `${errorMessage(err)}${results ? " Previous saved results are still shown below; no fresh results were received." : ""}`,
+      );
     } finally {
+      searching.current = false;
       setBusy("");
     }
   }
   const currentAnalysis =
     analysis?.resume_id === Number(selectedId) && isEvidenceAnalysis(analysis);
-  const visibleJobs =
-    results?.jobs.filter((job) => job.match_score >= minScore) || [];
+  const visibleJobs = useMemo(
+    () => results?.jobs.filter((job) => job.match_score >= minScore) || [],
+    [results, minScore],
+  );
+  const loadingAnalysis = selectedStatus === "COMPLETED" && !analysis && !error;
+  const loadingMatches =
+    currentAnalysis && loadedMatchId !== selectedId && !results && !error;
   return (
     <>
       <header className="topbar">
-        <Brand />
+        <Brand onHome={() => changeSection("job-matching")} />
         <div className="header-right">
           <span className="user-name">{user.full_name || user.email}</span>
           <button
             className="secondary small-button"
             disabled={!!busy}
-            onClick={onLogout}
+            onClick={() => {
+              cache.clear();
+              onLogout();
+            }}
           >
             Sign out
           </button>
@@ -677,13 +865,7 @@ function Workspace({ user, onLogout }) {
                   <select
                     aria-label="Selected resume"
                     value={selectedId}
-                    onChange={(event) => {
-                      setError("");
-                      setAnalysis(null);
-                      setResults(null);
-                      setMinScore(0);
-                      setSelectedId(event.target.value);
-                    }}
+                    onChange={(event) => selectResume(event.target.value)}
                     disabled={!!busy}
                   >
                     {resumes.map((resume) => (
@@ -694,6 +876,13 @@ function Workspace({ user, onLogout }) {
                   </select>
                 </label>
                 <div className="resume-actions">
+                  <button
+                    className="text-button"
+                    disabled={!!busy}
+                    onClick={refreshSavedData}
+                  >
+                    Refresh saved data
+                  </button>
                   {(!currentAnalysis || selected?.status !== "COMPLETED") && (
                     <button
                       className="secondary small-button"
@@ -713,6 +902,11 @@ function Workspace({ user, onLogout }) {
                 </div>
               </>
             )}
+            {loadingAnalysis && (
+              <Notice>
+                <span className="spinner" /> Loading resume analysis…
+              </Notice>
+            )}
             {analysis && section === "job-matching" && (
               <ResumeEvidence analysis={analysis} />
             )}
@@ -727,156 +921,172 @@ function Workspace({ user, onLogout }) {
             )}
           </aside>
           <section className="results-column">
-            {section === "resume-analysis" ? (
+            <div hidden={section !== "resume-analysis"}>
               <ResumeAnalysisPanel analysis={analysis}>
                 {analysis && <ResumeEvidence analysis={analysis} />}
               </ResumeAnalysisPanel>
-            ) : (
-              <>
-                <div className="search-panel">
-                  <div className="panel-heading">
-                    <span className="step-dot">2</span>
-                    <h2>Find current openings</h2>
-                  </div>
-                  <form ref={searchRef} onSubmit={search}>
-                    <div className="search-primary">
-                      <label>
-                        Job title or keywords
-                        <input
-                          aria-label="Job title or keywords"
-                          value={query}
-                          onChange={(event) => setQuery(event.target.value)}
-                          placeholder="e.g. Python developer"
-                          maxLength={120}
-                          disabled={!!busy}
-                          required
-                        />
-                      </label>
-                      <label>
-                        <span>
-                          Location <small>optional</small>
-                        </span>
-                        <input
-                          aria-label="Location"
-                          value={location}
-                          onChange={(event) => setLocation(event.target.value)}
-                          placeholder="City or region"
-                          maxLength={120}
-                          disabled={!!busy}
-                        />
-                      </label>
-                    </div>
-                    <div className="search-secondary">
-                      <label>
-                        Country
-                        <select
-                          value={country}
-                          onChange={(event) => setCountry(event.target.value)}
-                          disabled={!!busy}
-                        >
-                          {Object.entries(
-                            provider?.countries || { in: "India" },
-                          ).map(([code, name]) => (
-                            <option value={code} key={code}>
-                              {name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        Posted within
-                        <select
-                          value={maxDays}
-                          onChange={(event) =>
-                            setMaxDays(Number(event.target.value))
-                          }
-                          disabled={!!busy}
-                        >
-                          <option value={7}>7 days</option>
-                          <option value={30}>30 days</option>
-                          <option value={90}>90 days</option>
-                        </select>
-                      </label>
-                      <label>
-                        Jobs to compare
-                        <select
-                          value={limit}
-                          onChange={(event) =>
-                            setLimit(Number(event.target.value))
-                          }
-                          disabled={!!busy}
-                        >
-                          <option value={20}>Up to 20</option>
-                          <option value={50}>Up to 50</option>
-                          <option value={100}>Up to 100</option>
-                        </select>
-                      </label>
-                      <button
-                        className="primary search-button"
-                        disabled={
-                          !currentAnalysis ||
-                          !provider?.configured ||
-                          !!busy ||
-                          loading
-                        }
-                      >
-                        {busy.startsWith("Fetching")
-                          ? "Matching…"
-                          : "Find matches"}{" "}
-                        <span>↗</span>
-                      </button>
-                    </div>
-                  </form>
-                  <small className="muted">
-                    The suggested query comes from extracted skills and is
-                    editable. All fetched jobs are scored together, then ranked.
-                  </small>
+              {loadingAnalysis && <Notice>Loading resume analysis…</Notice>}
+            </div>
+            <div hidden={section !== "job-matching"}>
+              <div className="search-panel">
+                <div className="panel-heading">
+                  <span className="step-dot">2</span>
+                  <h2>Find current openings</h2>
                 </div>
-                {results ? (
-                  <>
-                    <div className="results-heading">
-                      <div>
-                        <span className="eyebrow">3 · YOUR SHORTLIST</span>
-                        <h2>{results.scored_count} jobs compared</h2>
-                        <p className="muted small">
-                          {results.from_saved_search
-                            ? "Saved search"
-                            : results.provider === "adzuna"
-                              ? "Fetched from Adzuna"
-                              : "Test fixtures — not live"}{" "}
-                          · {formattedDate(results.fetched_at)}
-                        </p>
-                      </div>
-                      <label className="score-filter">
-                        Minimum score
-                        <select
-                          value={minScore}
-                          onChange={(event) =>
-                            setMinScore(Number(event.target.value))
-                          }
-                        >
-                          <option value={0}>Show all</option>
-                          <option value={45}>45+</option>
-                          <option value={75}>75+</option>
-                        </select>
-                      </label>
+                <form
+                  ref={searchRef}
+                  onChange={() => {
+                    formEdited.current = true;
+                  }}
+                  onSubmit={search}
+                >
+                  <div className="search-primary">
+                    <label>
+                      Job title or keywords
+                      <input
+                        aria-label="Job title or keywords"
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="e.g. Python developer"
+                        maxLength={120}
+                        disabled={!!busy}
+                        required
+                      />
+                    </label>
+                    <label>
+                      <span>
+                        Location <small>optional</small>
+                      </span>
+                      <input
+                        aria-label="Location"
+                        value={location}
+                        onChange={(event) => setLocation(event.target.value)}
+                        placeholder="City or region"
+                        maxLength={120}
+                        disabled={!!busy}
+                      />
+                    </label>
+                  </div>
+                  <div className="search-secondary">
+                    <label>
+                      Country
+                      <select
+                        value={country}
+                        onChange={(event) => setCountry(event.target.value)}
+                        disabled={!!busy}
+                      >
+                        {Object.entries(
+                          provider?.countries || { in: "India" },
+                        ).map(([code, name]) => (
+                          <option value={code} key={code}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Posted within
+                      <select
+                        value={maxDays}
+                        onChange={(event) =>
+                          setMaxDays(Number(event.target.value))
+                        }
+                        disabled={!!busy}
+                      >
+                        <option value={7}>7 days</option>
+                        <option value={30}>30 days</option>
+                        <option value={90}>90 days</option>
+                      </select>
+                    </label>
+                    <label>
+                      Jobs to compare
+                      <select
+                        value={limit}
+                        onChange={(event) =>
+                          setLimit(Number(event.target.value))
+                        }
+                        disabled={!!busy}
+                      >
+                        <option value={20}>Up to 20</option>
+                        <option value={50}>Up to 50</option>
+                        <option value={100}>Up to 100</option>
+                      </select>
+                    </label>
+                    <button
+                      className="primary search-button"
+                      disabled={
+                        !currentAnalysis ||
+                        !provider?.configured ||
+                        !!busy ||
+                        loading
+                      }
+                    >
+                      {busy.startsWith("Fetching")
+                        ? "Matching…"
+                        : "Find matches"}{" "}
+                      <span>↗</span>
+                    </button>
+                  </div>
+                </form>
+                <small className="muted">
+                  The suggested query comes from extracted skills and is
+                  editable. All fetched jobs are scored together, then ranked.
+                </small>
+              </div>
+              {results ? (
+                <>
+                  <div className="results-heading">
+                    <div>
+                      <span className="eyebrow">3 · YOUR SHORTLIST</span>
+                      <h2>{results.scored_count} jobs compared</h2>
+                      <p className="muted small">
+                        {results.from_saved_search
+                          ? "Saved search"
+                          : results.provider === "adzuna"
+                            ? "Fetched from Adzuna"
+                            : "Test fixtures — not live"}{" "}
+                        · {formattedDate(results.fetched_at)}
+                      </p>
                     </div>
-                    <p className="scope-note">
-                      {results.score_notice} We fetched {results.fetched_count}{" "}
-                      listings for this query
-                      {results.skipped_count
-                        ? ` and excluded ${results.skipped_count} duplicate, outdated or invalid listings`
-                        : ""}
-                      . This is not the entire job market.
-                    </p>
-                    {results.from_saved_search && (
-                      <Notice>
-                        These are saved results, not a live availability check.
-                        Use Find matches to fetch a fresh set.
-                      </Notice>
-                    )}
-                    {visibleJobs.length ? (
-                      visibleJobs.map((job, index) => (
+                    <label className="score-filter">
+                      Minimum score
+                      <select
+                        value={minScore}
+                        onChange={(event) => (
+                          setMinScore(Number(event.target.value)),
+                          setVisibleCount(20)
+                        )}
+                      >
+                        <option value={0}>Show all</option>
+                        <option value={45}>45+</option>
+                        <option value={75}>75+</option>
+                      </select>
+                    </label>
+                  </div>
+                  <p className="muted small">
+                    Results for “{results.query}”
+                    {results.location ? ` · ${results.location}` : ""}. Showing{" "}
+                    {Math.min(visibleCount, visibleJobs.length)} of{" "}
+                    {visibleJobs.length} matches.
+                  </p>
+                  <p className="scope-note">
+                    {results.score_notice} We fetched {results.fetched_count}{" "}
+                    listings for this query
+                    {results.skipped_count
+                      ? ` and excluded ${results.skipped_count} duplicate, outdated or invalid listings`
+                      : ""}
+                    . This is not the entire job market.
+                  </p>
+                  {results.from_saved_search && (
+                    <Notice>
+                      These are saved results, not a live availability check.
+                      Use Find matches to fetch a fresh set.
+                    </Notice>
+                  )}
+                  {visibleJobs.length ? (
+                    visibleJobs
+                      .slice(0, visibleCount)
+                      .map((job, index) => (
                         <JobCard
                           key={job.id}
                           job={job}
@@ -884,58 +1094,67 @@ function Workspace({ user, onLogout }) {
                           onDetails={setDetailJob}
                         />
                       ))
-                    ) : (
-                      <div className="empty-state">
-                        <span>⌕</span>
-                        <h3>
-                          {results.jobs.length
-                            ? "No results meet this score filter"
-                            : "No current results for this search"}
-                        </h3>
-                        <p>
-                          Try another keyword, nearby city or a broader date
-                          range. No results is different from a provider error.
-                        </p>
-                      </div>
-                    )}
-                    <p className="adzuna-credit">
-                      Job advertisements supplied by{" "}
-                      <a
-                        href="https://www.adzuna.com"
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Adzuna ↗
-                      </a>
-                      . Check the full listing before applying.
-                    </p>
-                  </>
-                ) : (
-                  <div className="empty-state">
-                    <span>⌕</span>
-                    <h2>
-                      {loading
-                        ? "Loading your workspace…"
-                        : busy
-                          ? "Working on your next step"
-                          : "Your shortlist starts here"}
-                    </h2>
-                    <p>
-                      Upload a readable resume, review its extracted evidence,
-                      then find current Adzuna openings. Scores explain overlap,
-                      not a guaranteed offer.
-                    </p>
-                    <div className="empty-steps">
-                      <span>RESUME EVIDENCE</span>
-                      <b>→</b>
-                      <span>CURRENT JOBS</span>
-                      <b>→</b>
-                      <span>RANKED MATCHES</span>
+                  ) : (
+                    <div className="empty-state">
+                      <span>⌕</span>
+                      <h3>
+                        {results.jobs.length
+                          ? "No results meet this score filter"
+                          : "No current results for this search"}
+                      </h3>
+                      <p>
+                        Try another keyword, nearby city or a broader date
+                        range. No results is different from a provider error.
+                      </p>
                     </div>
+                  )}
+                  {visibleJobs.length > visibleCount && (
+                    <button
+                      type="button"
+                      className="secondary show-more-jobs"
+                      onClick={() => setVisibleCount((count) => count + 20)}
+                    >
+                      Show next{" "}
+                      {Math.min(20, visibleJobs.length - visibleCount)} jobs
+                    </button>
+                  )}
+                  <p className="adzuna-credit">
+                    Job advertisements supplied by{" "}
+                    <a
+                      href="https://www.adzuna.com"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Adzuna ↗
+                    </a>
+                    . Check the full listing before applying.
+                  </p>
+                </>
+              ) : (
+                <div className="empty-state">
+                  <span>⌕</span>
+                  <h2>
+                    {loading || loadingMatches
+                      ? "Loading your saved data…"
+                      : busy
+                        ? "Working on your next step"
+                        : "Your shortlist starts here"}
+                  </h2>
+                  <p>
+                    Upload a readable resume, review its extracted evidence,
+                    then find current Adzuna openings. Scores explain overlap,
+                    not a guaranteed offer.
+                  </p>
+                  <div className="empty-steps">
+                    <span>RESUME EVIDENCE</span>
+                    <b>→</b>
+                    <span>CURRENT JOBS</span>
+                    <b>→</b>
+                    <span>RANKED MATCHES</span>
                   </div>
-                )}
-              </>
-            )}
+                </div>
+              )}
+            </div>
           </section>
         </div>
       </main>

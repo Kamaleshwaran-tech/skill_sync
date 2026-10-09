@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config.settings import get_settings
 from app.exceptions.handlers import register_exception_handlers
 from app.middleware.logging import add_request_logging_middleware
+from app.middleware.compression import WorkspaceCompression
 from app.routers import auth, health, resumes, jobs
 from app.utils.logging import configure_logging
 
@@ -35,6 +36,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+app.add_middleware(WorkspaceCompression, api_prefix=settings.api_prefix)
 register_exception_handlers(app)
 add_request_logging_middleware(app)
 app.include_router(auth.router, prefix=settings.api_prefix + "/auth")

@@ -83,24 +83,35 @@ def _negated_skill(text, match):
     return bool(re.search(prefix, before, re.I) or re.match(suffix, after, re.I))
 
 
-def skill_evidence(text):
+def _compile_skill_patterns():
     aliases = {s: s for s in [*MASTER_SKILLS, *EXTRA_SKILLS]}
     aliases.update(VARIATIONS)
-    found = {}
+    patterns = []
     for alias, canonical in aliases.items():
         if not alias or canonical in SOFT:
             continue
-        # Boundaries retain C++/C# and prevent Java in JavaScript or Go in Django.
         if canonical in {"C", "R", "Go"} and alias.lower() == canonical.lower():
             alias = canonical
         flags = 0 if alias in {"C", "R", "Go"} else re.I
-        pattern = r"(?<![\w+#])" + re.escape(alias) + r"(?![\w+#])"
-        match = next(
+        patterns.append(
             (
-                m
-                for m in re.finditer(pattern, text, flags)
-                if not _negated_skill(text, m)
-            ),
+                canonical,
+                re.compile(r"(?<![\w+#])" + re.escape(alias) + r"(?![\w+#])", flags),
+            )
+        )
+    return tuple(patterns)
+
+
+SKILL_PATTERNS = _compile_skill_patterns()
+
+
+def skill_evidence(text):
+    found = {}
+    for canonical, pattern in SKILL_PATTERNS:
+        if canonical in found:
+            continue
+        match = next(
+            (m for m in pattern.finditer(text) if not _negated_skill(text, m)),
             None,
         )
         if match and canonical not in found:
@@ -196,15 +207,21 @@ STOP_WORDS = set(
 )
 
 
-def lexical_similarity(left, right):
-    def tokens(text):
-        return [
-            t
-            for t in re.findall(r"[a-z0-9][a-z0-9+#.\-]*", text.lower())
-            if len(t) > 1 and t not in STOP_WORDS
-        ]
+def token_counts(text):
+    return Counter(
+        t
+        for t in re.findall(r"[a-z0-9][a-z0-9+#.\-]*", text.lower())
+        if len(t) > 1 and t not in STOP_WORDS
+    )
 
-    docs = [Counter(tokens(left)), Counter(tokens(right))]
+
+def lexical_similarity(left, right):
+    return similarity_from_counts(token_counts(left), token_counts(right))
+
+
+def similarity_from_counts(left, right):
+    # IDF remains pair-specific; only tokenization of the resume is reused.
+    docs = [left, right]
     vectors = []
     for doc in docs:
         vectors.append(

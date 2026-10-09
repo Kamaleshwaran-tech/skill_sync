@@ -73,6 +73,14 @@ python3.12 scripts/run_local.py web
 
 The tested platform was Debian 13 x86_64, Python 3.12.15 and Node 20.20.2. macOS was not executed in this audit. No GPU, WSL or model downloads are required by this implementation.
 
+## Faster navigation and saved data
+
+The workspace now reuses bounded, per-session resume snapshots instead of refetching every time you revisit a resume. Analysis appears independently of provider status/saved jobs, tab navigation retains the cards, and only 20 cards plus expanded explanations render initially. **Find matches still performs a fresh Adzuna search**; prior results remain visibly labelled while it runs or if it fails.
+
+Use **Refresh saved data** to revalidate the selected resume and its saved search, or **Show next 20 jobs** to reveal more already-ranked matches without another provider request. Snapshots are isolated per account/resume and cleared on logout; resume content is not stored in browser localStorage.
+
+See [PERFORMANCE_NOTES.md](PERFORMANCE_NOTES.md) for the diagnosis, exact patch baseline, implementation, reproducible CPU benchmark and delayed-response browser tests. The synthetic 100-job ranking benchmark improved from 1.32s to 0.21s with identical output; this does not measure live Adzuna network latency.
+
 ## How matching works
 
 1. **Local extraction:** PyMuPDF reads text PDFs; python-docx reads paragraphs, tables and headers/footers. Skills use a bounded term/alias taxonomy. Education/experience sections retain their actual text. Missing contact details, degrees and experience durations remain unknown.
@@ -80,7 +88,7 @@ The tested platform was Debian 13 x86_64, Python 3.12.15 and Node 20.20.2. macOS
 3. **One bounded provider search:** Adzuna is called over HTTPS with keywords and filters. No resume text, contact details or full extracted profile are sent. Up to 100 results are fetched across pages; default 50. Missing credentials, invalid keys, timeouts, rate limits and invalid provider payloads are explicit errors, not successful empty searches.
 4. **Normalize and rank:** IDs are deduplicated; explicitly expired/out-of-window listings are excluded. Every remaining fetched listing is scored before sorting. A good match on provider page 2 can rank above every job on page 1. No background generic job ingestion or shared cross-query result cache is used.
 5. **Explain the result:** each job shows skills found/not found in the selected resume, supporting text excerpts, applied score weights, salary currency, provider-estimate flags, posting date and a safe Adzuna link. Unspecified metadata is not invented.
-6. **Save by resume:** successful search results persist with resume ID, analysis ID, filters, provider and fetch timestamp. Reloaded results are explicitly marked **saved**, not a new availability check. Refresh to fetch current results again. Failed searches do not overwrite history with a fake successful result.
+6. **Save by resume:** successful search results persist with resume ID, analysis ID, filters, provider and fetch timestamp. Reloaded results are explicitly marked **saved**, not a new availability check. Use Find matches to fetch current results again. Failed searches do not overwrite history with a fake successful result.
 
 ### Score definition
 
@@ -137,7 +145,7 @@ Install Playwright separately in a development environment (`pip install playwri
 
 1. From `backend`, start `python -m tests.serve_browser_fixture` (port 8001).
 2. Start frontend preview on 5174 with `VITE_BACKEND_URL=http://127.0.0.1:8001` set in that terminal.
-3. From `backend`, run `python scripts/verify_core_browser.py`.
+3. From `backend`, run `python scripts/verify_core_browser.py` and `python scripts/verify_navigation_performance.py`.
 
 The test server has isolated temporary data and a prominent **TEST FIXTURES — not live vacancies** banner. It is not a production provider or demo-data mode. Never start it instead of `app.main:app` for normal use.
 

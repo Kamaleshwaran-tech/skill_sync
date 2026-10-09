@@ -49,6 +49,18 @@ def transport(request):
             "company": {"display_name": "Synthetic Java Company"},
         },
     ]
+    if query == "many-jobs":
+        all_jobs = [
+            {
+                **jobs[0],
+                "id": f"fixture-many-{i}",
+                "title": f"TEST FIXTURE — Python Developer {i}",
+            }
+            for i in range(100)
+        ]
+        page = int(request.url.path.rsplit("/", 1)[1])
+        size = int(request.url.params.get("results_per_page", "50"))
+        jobs = all_jobs[(page - 1) * size : page * size]
     for job in jobs:
         job.update(
             location={"display_name": "Chennai"},
@@ -57,7 +69,9 @@ def transport(request):
             salary_max=900000,
             redirect_url="https://www.adzuna.in/jobs/land/ad/" + job["id"],
         )
-    return httpx.Response(200, json={"results": jobs, "count": 2})
+    return httpx.Response(
+        200, json={"results": jobs, "count": 100 if query == "many-jobs" else 2}
+    )
 
 
 httpx.Client = lambda **kwargs: original_client(
