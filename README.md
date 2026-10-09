@@ -90,6 +90,12 @@ Experience uses an explicit years-of-experience statement, or an estimate from m
 
 **A score is an overlap heuristic, not a probability of getting hired or a guaranteed perfect match.** Skill mention is not proof of proficiency. The taxonomy is strongest for technical roles; non-technical coverage and complex resume layouts are limited. Adzuna returns **description snippets**, so absence from a snippet/resume is not proof that a qualification is absent from the full document or person. Review the evidence and original vacancy before applying. No application is submitted automatically.
 
+## Job cards and details
+
+Each job card has a **Details** button that opens a popup with the company, location, salary, working hours, contract type, posting date, experience mentioned, job snippet, matching score and skill comparisons. Close it with the close button, Escape or a click outside. Keyboard focus stays inside the popup and returns to the opening button.
+
+**Matched skills** and **Missing skills** are separate, always-visible sections on each card and inside the popup. Missing means not found in the selected resume, not proof the applicant lacks the skill; some missing mentions can be optional. If the snippet supplies no identifiable requirements, the UI says gaps cannot be determined rather than claiming a perfect match.
+
 ## Tests
 
 From `backend` on Windows:

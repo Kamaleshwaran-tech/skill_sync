@@ -44,3 +44,28 @@ export function formattedDate(value) {
 export function isEvidenceAnalysis(analysis) {
   return analysis?.profile?.parser_version === "evidence-v1";
 }
+
+// Comparison evidence also supports saved results whose summary arrays are absent.
+export function getSkillSummary(job = {}) {
+  const comparisons = Array.isArray(job.comparisons) ? job.comparisons : [];
+  const skills = (values) => [
+    ...new Set(
+      values
+        .filter((value) => typeof value === "string" && value.trim())
+        .map((value) => value.trim()),
+    ),
+  ];
+  const matched = skills([
+    ...(Array.isArray(job.matched_skills) ? job.matched_skills : []),
+    ...comparisons
+      .filter((row) => row?.found_in_resume === true)
+      .map((row) => row.skill),
+  ]);
+  const missing = skills([
+    ...(Array.isArray(job.missing_skills) ? job.missing_skills : []),
+    ...comparisons
+      .filter((row) => row?.found_in_resume === false)
+      .map((row) => row.skill),
+  ]);
+  return { matched, missing };
+}

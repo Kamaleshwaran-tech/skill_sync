@@ -1001,3 +1001,178 @@ footer {
     font-size: 11px;
   }
 }
+
+/* Visible skill gaps and accessible, native job details modal. */
+.job-skill-summary {
+  display: grid;
+  gap: 18px;
+  margin: 22px 0;
+}
+.job-skill-summary h4 {
+  font-size: 12px;
+  margin: 0 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.job-skill-summary h4 > span {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: #edf2f2;
+  color: #476164;
+}
+.job-skill-summary .match-chips {
+  margin: 0;
+}
+.job-skill-summary .small {
+  margin: 8px 0 0;
+}
+.job-skill-summary .missing {
+  background: #fff3df;
+  color: #765119;
+  border: 1px solid #e8d5af;
+}
+.job-bottom {
+  flex-wrap: wrap;
+}
+.job-details-button {
+  margin-left: auto;
+}
+.job-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-height: 88vh;
+  max-height: 88dvh;
+  padding: 0;
+  border: 1px solid #dce5e2;
+  border-radius: 18px;
+  color: #183c3d;
+  background: white;
+  box-shadow: 0 25px 90px #092d3a40;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.job-dialog::backdrop {
+  background: #102e3c99;
+  backdrop-filter: blur(3px);
+}
+.job-dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 24px 28px 18px;
+  background: white;
+  border-bottom: 1px solid #e7edeb;
+}
+.job-dialog-header h2 {
+  margin: 10px 0 5px;
+  font-size: 22px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.job-dialog-header p {
+  margin: 0;
+}
+.dialog-close {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f1f6f4;
+  color: #2b5b54;
+  border: 1px solid #dae6e0;
+  font-size: 25px;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+.job-dialog-body {
+  padding: 22px 28px;
+  overflow-wrap: anywhere;
+}
+.dialog-match {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: #eff7f4;
+  border-radius: 10px;
+  padding: 18px;
+  font-size: 13px;
+}
+.dialog-match > strong {
+  font-size: 29px;
+  white-space: nowrap;
+  color: #08796b;
+}
+.dialog-match strong small {
+  font-size: 12px;
+  margin-left: 3px;
+  color: #5f7f79;
+  font-weight: 400;
+}
+.dialog-match p {
+  margin: 5px 0 0;
+  line-height: 1.5;
+}
+.job-facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 22px 0;
+  margin: 0;
+  border-bottom: 1px solid #e7edeb;
+}
+.job-facts dt {
+  font-size: 11px;
+  color: #667c81;
+  margin-bottom: 5px;
+}
+.job-facts dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  font-weight: 600;
+}
+.dialog-description h3 {
+  font-size: 14px;
+  margin-top: 22px;
+}
+.dialog-description p {
+  line-height: 1.75;
+}
+.job-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 28px;
+  border-top: 1px solid #e7edeb;
+}
+@media (max-width: 480px) {
+  .job-dialog-header,
+  .job-dialog-body,
+  .job-dialog-footer {
+    padding: 18px;
+  }
+  .job-dialog-header h2 {
+    font-size: 19px;
+  }
+  .job-facts {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  .dialog-match {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .job-bottom > .muted {
+    flex-basis: 100%;
+  }
+  .job-details-button {
+    margin-left: 0;
+  }
+}

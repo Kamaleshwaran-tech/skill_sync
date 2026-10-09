@@ -77,6 +77,73 @@ with sync_playwright() as p:
             "Evidence-based ranking and displayed explanation",
         ]
     )
+    first_card = page.locator("article").first
+    expect(
+        first_card.get_by_role("region", name="Missing skills", exact=True)
+    ).to_contain_text("Docker")
+    details_button = first_card.get_by_role("button", name="Details", exact=True)
+    details_button.click()
+    dialog = page.get_by_role(
+        "dialog", name="TEST FIXTURE — Python Developer", exact=True
+    )
+    expect(dialog).to_be_visible()
+    expect(dialog.get_by_text("Salary", exact=True)).to_be_visible()
+    expect(
+        dialog.get_by_role("region", name="Missing skills", exact=True)
+    ).to_contain_text("Docker")
+    expect(dialog).to_contain_text("python-resume.docx")
+    for _ in range(5):
+        page.keyboard.press("Tab")
+        assert dialog.evaluate("node => node.contains(document.activeElement)"), (
+            "Focus escaped modal"
+        )
+    for _ in range(4):
+        page.keyboard.press("Shift+Tab")
+        assert dialog.evaluate("node => node.contains(document.activeElement)"), (
+            "Backward focus escaped modal"
+        )
+    page.keyboard.press("Escape")
+    expect(dialog).not_to_be_visible()
+    expect(details_button).to_be_focused()
+    details_button.press("Enter")
+    expect(dialog).to_be_visible()
+    dialog.get_by_role("button", name="Close job details", exact=True).click()
+    expect(dialog).not_to_be_visible()
+    page.locator("article").nth(1).get_by_role(
+        "button", name="Details", exact=True
+    ).click()
+    second_dialog = page.get_by_role(
+        "dialog", name="TEST FIXTURE — Java Developer", exact=True
+    )
+    expect(second_dialog).to_be_visible()
+    expect(
+        second_dialog.get_by_role("region", name="Missing skills", exact=True)
+    ).to_contain_text("Java")
+    second_dialog.get_by_role("button", name="Close", exact=True).click()
+    page.set_viewport_size({"width": 390, "height": 844})
+    details_button.click()
+    expect(dialog).to_be_visible()
+    assert dialog.evaluate("node => node.scrollWidth <= node.clientWidth + 1"), (
+        "Dialog mobile overflow"
+    )
+    assert page.evaluate(
+        "document.documentElement.scrollWidth <= window.innerWidth+2"
+    ), "Mobile page overflow"
+    screenshot = Path.home() / ".cache" / "skillsync-job-details-mobile.png"
+    screenshot.parent.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(screenshot))
+    page.mouse.click(2, 2)
+    expect(dialog).not_to_be_visible()
+    assert page.evaluate("document.body.style.overflow !== 'hidden'")
+    page.set_viewport_size({"width": 1440, "height": 1000})
+    checks.extend(
+        [
+            "Details opens the correct job popup on every card",
+            "Visible missing skills on cards and popup",
+            "Modal keyboard focus, Escape, close button and backdrop dismissal",
+            "Mobile popup fits without horizontal overflow",
+        ]
+    )
     page.reload()
     expect(
         page.get_by_text(
@@ -101,6 +168,11 @@ with sync_playwright() as p:
             "heading", name="TEST FIXTURE — Java Developer"
         )
     ).to_be_visible()
+    expect(
+        page.locator("article").first.get_by_role(
+            "region", name="Missing skills", exact=True
+        )
+    ).to_contain_text("None among the skills identified")
     page.get_by_label("Selected resume", exact=True).select_option(
         label="python-resume.docx · completed"
     )
@@ -110,6 +182,11 @@ with sync_playwright() as p:
         )
     ).to_be_visible()
     checks.append("Two resumes remain isolated; switching restores the correct matches")
+    expect(
+        page.locator("article").first.get_by_role(
+            "region", name="Missing skills", exact=True
+        )
+    ).to_contain_text("Docker")
     page.get_by_label("Job title or keywords", exact=True).fill("provider-fail")
     page.get_by_role("button", name="Find matches", exact=False).click()
     expect(page.get_by_role("alert")).to_contain_text("Adzuna rejected")

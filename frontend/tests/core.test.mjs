@@ -1,3 +1,4 @@
+import { getSkillSummary } from "../src/core.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -72,5 +73,36 @@ test("legacy guessed analyses cannot be treated as evidence", () => {
   assert.equal(
     isEvidenceAnalysis({ profile: { parser_version: "evidence-v1" } }),
     true,
+  );
+});
+
+test("missing skills include comparison evidence even when summary is absent", () => {
+  assert.deepEqual(
+    getSkillSummary({
+      comparisons: [
+        { skill: "Python", found_in_resume: true },
+        { skill: "Docker", found_in_resume: false },
+      ],
+    }),
+    { matched: ["Python"], missing: ["Docker"] },
+  );
+});
+test("skill summaries retain all missing skills without duplication", () => {
+  assert.deepEqual(
+    getSkillSummary({
+      missing_skills: ["Docker", " SQL ", "Docker", null],
+      comparisons: [{ skill: "Docker", found_in_resume: false }],
+    }).missing,
+    ["Docker", "SQL"],
+  );
+});
+test("unknown skill evidence is not invented as a match or a gap", () => {
+  assert.deepEqual(getSkillSummary(), { matched: [], missing: [] });
+  assert.deepEqual(
+    getSkillSummary({
+      missing_skills: "Python",
+      comparisons: [null, { skill: "Java" }],
+    }),
+    { matched: [], missing: [] },
   );
 });

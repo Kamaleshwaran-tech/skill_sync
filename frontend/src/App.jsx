@@ -1,3 +1,4 @@
+import JobDetails, { SkillSummary } from "./JobDetails";
 import { useEffect, useRef, useState } from "react";
 import {
   apiClient,
@@ -232,7 +233,7 @@ function ResumeEvidence({ analysis }) {
   );
 }
 
-function JobCard({ job, rank }) {
+function JobCard({ job, rank, onDetails }) {
   const url = safeLink(job.application_url);
   return (
     <article className="job-card">
@@ -268,18 +269,7 @@ function JobCard({ job, rank }) {
       <p className="job-snippet">
         {job.description || "No description supplied by Adzuna."}
       </p>
-      <div className="match-chips">
-        {job.matched_skills.map((skill) => (
-          <span className="matched" key={skill}>
-            ✓ {skill}
-          </span>
-        ))}
-        {job.missing_skills.map((skill) => (
-          <span className="missing" key={skill}>
-            Not found: {skill}
-          </span>
-        ))}
-      </div>
+      <SkillSummary job={job} />
       <details className="match-details">
         <summary>
           Why this match? <span>View evidence + score breakdown</span>
@@ -330,6 +320,14 @@ function JobCard({ job, rank }) {
             ? new Date(job.posted_at).toLocaleDateString()
             : "date unavailable"}
         </span>
+        <button
+          type="button"
+          className="secondary small-button job-details-button"
+          aria-haspopup="dialog"
+          onClick={() => onDetails(job)}
+        >
+          Details
+        </button>
         {url ? (
           <a
             className="apply-link"
@@ -349,6 +347,7 @@ function JobCard({ job, rank }) {
 
 function Workspace({ user, onLogout }) {
   const [resumes, setResumes] = useState([]);
+  const [detailJob, setDetailJob] = useState(null);
   const [provider, setProvider] = useState(null);
   const [selectedId, setSelectedId] = useState("");
   const [analysis, setAnalysis] = useState(null);
@@ -822,7 +821,12 @@ function Workspace({ user, onLogout }) {
                 )}
                 {visibleJobs.length ? (
                   visibleJobs.map((job, index) => (
-                    <JobCard key={job.id} job={job} rank={index + 1} />
+                    <JobCard
+                      key={job.id}
+                      job={job}
+                      rank={index + 1}
+                      onDetails={setDetailJob}
+                    />
                   ))
                 ) : (
                   <div className="empty-state">
@@ -877,6 +881,11 @@ function Workspace({ user, onLogout }) {
           </section>
         </div>
       </main>
+      <JobDetails
+        job={detailJob}
+        resumeName={results?.resume_filename}
+        onClose={() => setDetailJob(null)}
+      />
       <footer>
         SkillSync · Your resume, matched with evidence{" "}
         <span>No invented skills. No guaranteed “perfect” matches.</span>
