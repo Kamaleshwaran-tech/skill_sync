@@ -1,19 +1,86 @@
-# SkillSync frontend
+# SkillSync AI Frontend
 
-A focused React workspace for authentication, resume extraction review, Adzuna filters, evidence-based ranking and saved results. No roadmap/course/readiness dashboards or employer screens.
+The SkillSync AI frontend is a React + Vite application using JavaScript and Material UI. It currently includes the shared architecture, public marketing landing page, and frontend-only authentication experience. It intentionally contains no dashboard, backend endpoint definitions, mock API responses, or real authentication-provider integration.
 
-Use the root setup/launcher scripts. For development, run `npm ci` and `npm run dev`; `/api` is proxied to port 8000 by default. `VITE_BACKEND_URL` changes the server-side proxy target. Never put provider credentials into a `VITE_*` variable.
+## Prerequisites
 
-Checks: `npm run lint`, `npm test`, `npm run build`. Actual browser workflow is tested separately with explicitly labelled synthetic Adzuna HTTP responses; see the root README.
+- A current Node.js LTS release supported by Vite
+- npm
 
-## Screenshot corrections
+## Run locally
 
-The active interface preserves purple job cards and a Resume analysis view. Details opens a popup at every viewport width; missing skills are always labelled; the circular score has a fixed-size ring and centred label. Unknown quality scores remain unknown.
+```bash
+cd skillsync-ai/frontend
+npm install
+cp .env.example .env.local
+npm run dev
+```
 
-The footer must show `Interface: screenshot-fixes-v1`. `npm run preview` automatically rebuilds stale source; direct Vite preview refuses stale output. Stop old processes and hard-refresh the browser once after updating. See root `UI_UPDATE_NOTES.md`.
+On Windows PowerShell installations where `npm` scripts are disabled, use `npm.cmd` instead:
 
-## Navigation performance
+```powershell
+npm.cmd install
+Copy-Item .env.example .env.local
+npm.cmd run dev
+```
 
-`src/sessionCache.js` provides bounded per-Workspace GET snapshots (60s freshness, 16 entries, ~8 MiB serialized budget), single-flight reads and invalidation. No resume data is written to browser storage. Fresh provider searches are never served from this cache. Profile/status/match requests load independently; inactive tabs retain DOM, cards are memoized, closed explanations render lazily, and 20 results display initially.
+The Vite server prints the local URL after it starts.
 
-See `../PERFORMANCE_NOTES.md` for measured results, privacy/race semantics and browser tests. `npm test` includes cache contracts; tests do not assume a particular hardware speed.
+## Available scripts
+
+```bash
+npm run dev      # Start the development server
+npm run build    # Create a production build
+npm run preview  # Preview the production build
+npm run lint     # Lint JavaScript and JSX files
+```
+
+## Environment variables
+
+Vite exposes only variables prefixed with `VITE_` to browser code. Copy `.env.example` to `.env.local` for local overrides.
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `VITE_APP_NAME` | No | Application name used in the shell; defaults to `SkillSync AI`. |
+| `VITE_API_BASE_URL` | No | Optional Axios base URL. Leave unset until an approved backend contract is available. |
+
+No API endpoints or authentication headers are configured in this phase.
+
+## Architecture
+
+```text
+src/
+├── app/                  # Application-wide providers, routing, and theme
+├── features/             # Self-contained business features
+│   ├── auth/             # Frontend-only authentication forms and route guard
+│   ├── dashboard/        # Reserved; intentionally unimplemented
+│   ├── landing/          # Public landing-page sections and composition
+│   └── system/           # Application placeholder and not-found route
+├── shared/               # Reusable, feature-agnostic modules
+│   ├── api/              # Axios client
+│   ├── config/           # Environment configuration
+│   ├── query/            # TanStack Query client factory
+│   └── ui/               # Layout and feedback components
+├── App.jsx               # Composition root
+└── main.jsx              # Browser entry point
+```
+
+Use the `@` import alias for `src`, for example `@/shared/api/apiClient`.
+
+### Shared conventions
+
+- Put feature-specific routes, components, hooks, and API adapters inside `src/features/<feature>/`.
+- Keep cross-feature UI, configuration, and infrastructure in `src/shared/`.
+- Use `apiClient` only after backend contracts are approved; add endpoint-specific calls inside their owning feature.
+- Use TanStack Query for server state and its existing client defaults unless a feature has a documented reason to override them.
+- Use `useThemeMode()` in shared or feature UI that needs to change the persisted light/dark mode.
+- Keep public landing-page sections in `src/features/landing/`; the shared app shell owns the navbar and footer.
+- Use the shared `Reveal` component for restrained entrance/reveal motion. It respects reduced-motion preferences.
+
+## Authentication frontend
+
+The public authentication routes are `/login`, `/register`, and `/forgot-password`. Forms use React Hook Form with Zod validation, accessible password visibility controls, and submission loading/error states.
+
+`src/features/auth/api/authService.js` is an adapter boundary. Its current gateway intentionally throws `AuthIntegrationUnavailableError` after local validation; it makes no HTTP requests and assumes no endpoint or response shape. Replace that gateway only after the backend authentication contract is approved.
+
+`AuthProvider` exposes a temporary unauthenticated session (`user: null`) and `RequireAuth` protects the `/protected` route. No user object or successful sign-in response is fabricated.

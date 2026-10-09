@@ -32,16 +32,12 @@ async def log_requests(request: Request, call_next):
         },
     )
     response.headers["x-request-id"] = request_id
-    # Private API snapshots may be reused in session memory, never by shared/disk HTTP caches.
-    response.headers["cache-control"] = "private, no-store"
     response.headers["x-frame-options"] = "DENY"
     response.headers["x-content-type-options"] = "nosniff"
     response.headers["referrer-policy"] = "strict-origin-when-cross-origin"
     response.headers["permissions-policy"] = "camera=(), microphone=(), geolocation=()"
     if request.url.scheme == "https" or settings.environment.lower() == "production":
-        response.headers["strict-transport-security"] = (
-            "max-age=31536000; includeSubDomains"
-        )
+        response.headers["strict-transport-security"] = "max-age=31536000; includeSubDomains"
     return response
 
 

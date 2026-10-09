@@ -52,7 +52,6 @@ async function refreshAccessToken() {
   if (!refreshToken) throw new Error('No refresh token')
   const baseUrl = env.apiBaseUrl || ''
   const { data } = await axios.post(`${baseUrl}/auth/refresh`, { refresh_token: refreshToken }, {
-    timeout: 15_000,
     baseURL: undefined,
     headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
   })
@@ -73,32 +72,27 @@ apiClient.interceptors.request.use((config) => {
 
 apiClient.interceptors.response.use(
   (response) => response,
-  async (error) => {
-    if (error?.response?.status !== 401) throw error
-    const request = error.config || {}
-    // /auth/me is a protected endpoint too: reload must refresh an expired session.
-    const isCredentialRequest = /\/auth\/(login|register|refresh)(?:$|[/?])/.test(request.url || '')
-    if (isCredentialRequest) throw error
-    if (!request._retry && getRefreshToken()) {
-      request._retry = true
-      try {
+  (error) => {
+    if (error?.response?.status === 401) {
+      const isAuthRequest = /\/auth\//.test(error.config?.url || '')
+      if (!isAuthRequest && !error.config?._retry && getRefreshToken()) {
+        error.config._retry = true
         refreshPromise ||= refreshAccessToken().finally(() => { refreshPromise = null })
-        const token = await refreshPromise
-        request.headers = request.headers || {}
-        request.headers.Authorization = `Bearer ${token}`
-        if (/\/auth\/logout(?:$|[/?])/.test(request.url || '')) {
-          request.data = JSON.stringify({ refresh_token: getRefreshToken() })
-        }
-      } catch {
+        return refreshPromise.then((token) => {
+          error.config.headers = error.config.headers || {}
+          error.config.headers.Authorization = `Bearer ${token}`
+          return apiClient.request(error.config)
+        }).catch(() => {
+          clearAuthTokens()
+          throw error
+        })
+      }
+      if (!isAuthRequest) {
         clearAuthTokens()
         if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) window.location.assign('/login')
-        throw error
       }
-      // Do not erase credentials if the retried operation fails for a non-auth reason.
-      return apiClient.request(request)
     }
-    clearAuthTokens()
-    if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) window.location.assign('/login')
-    throw error
+
+    return Promise.reject(error)
   },
 )

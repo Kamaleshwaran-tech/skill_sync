@@ -1,166 +1,65 @@
-# SkillSync — Resume → Adzuna → Ranked job matches
+# SkillSync AI
 
-This source edition focuses on one purpose:
+SkillSync AI is an AI-powered Career Guidance and Live Job Skill Matching Platform designed for students. It offers resume analysis, semantic job matching, skill gap analysis, career readiness scoring, and personalized learning roadmaps.
 
-**Register/sign in → upload a resume → extract its information locally → fetch current Adzuna results → compare every fetched job against that exact resume → show a ranked, explainable shortlist.**
+---
 
-No career-readiness dashboard, course recommendations, learning roadmaps, employer marketplace, Gemini integration or local-model server is required. See [CORE_REVIEW.md](CORE_REVIEW.md) for the source findings, removals, test results and remaining limits.
+## 🏛️ Architecture Summary
 
-> This focused source refactor is based on repository commit `3387cb33803859992efc8a015a931eeef9ad1625`. The instructions below apply to this updated source tree, not the older release.
+- **Backend**: FastAPI + SQLAlchemy ORM + Alembic + Pydantic v2
+- **AI / NLP Stack**: spaCy + PyMuPDF + Sentence Transformers (`all-MiniLM-L6-v2`) + NumPy / scikit-learn Cosine Similarity + Google Gemini API
+- **Frontend**: React 19 + Vite + Material-UI (MUI) + Recharts + Framer Motion
+- **Database**: Universal support for PostgreSQL, MySQL 8, or zero-config local SQLite (`skillsync_ai.db`)
 
-## Start on Windows — no manual activation needed
+---
 
-For a clean install, extract the updated source ZIP into a **new folder**, not over the old release. For an existing checkout, back up `.env`, the database and uploads; use `git apply --check` on the supplied patch against the documented baseline before applying it (do not force through conflicts).
+## 🚀 Getting Started Locally
 
-Install **Python 3.12** and **Node.js 20.19+ or 22.12+ LTS** first. Open Command Prompt in the project root (the folder containing `backend`, `frontend` and `scripts`):
+### 1. Start the Backend API (FastAPI)
 
-```bat
-py -3.12 scripts\setup_local.py
+```powershell
+# Navigate to the backend directory
+cd backend
+
+# Activate the virtual environment (Windows PowerShell)
+.\.venv\Scripts\activate
+
+# (Optional: install dependencies if needed)
+pip install -r requirements.txt
+
+# Start the FastAPI development server on port 8000
+uvicorn app.main:app --reload --port 8000
 ```
 
-This creates `backend\.venv`, installs the hash-locked backend dependencies (including uvicorn), generates a unique JWT secret, migrates SQLite, installs the frontend using `npm ci`, and builds it. It preserves existing `.env` and database files.
+The API is accessible at:
+- **Interactive Swagger Docs**: `http://localhost:8000/api/v1/docs`
+- **ReDoc Documentation**: `http://localhost:8000/api/v1/redoc`
+- **Health Check**: `http://localhost:8000/api/v1/health`
 
-Configure your own legitimate Adzuna credentials:
+---
 
-```bat
-notepad backend\.env
+### 2. Start the Frontend (React + Vite)
+
+In a separate terminal window:
+
+```powershell
+# Navigate to the frontend directory
+cd frontend
+
+# Install frontend packages
+npm install
+
+# Start the Vite development server
+npm run dev
 ```
 
-Set:
+Open **`http://localhost:5173`** in your browser. All requests to `/api/v1/...` will proxy automatically to the local FastAPI backend.
 
-```dotenv
-ADZUNA_APP_ID=your_adzuna_app_id
-ADZUNA_API_KEY=your_adzuna_api_key
-ADZUNA_COUNTRY=in
-```
+---
 
-Obtain credentials from https://developer.adzuna.com/signup. Keep them **only in the backend `.env`**, never in frontend `VITE_*` variables, source control, screenshots or chat. A valid provider account and available quota are required.
+## 📁 Repository Layout
 
-Start these commands in **two separate terminals**, both at the project root:
-
-```bat
-py -3.12 scripts\run_local.py api
-```
-
-```bat
-py -3.12 scripts\run_local.py web
-```
-
-Open **http://localhost:5173**, create your own account and upload a text-based PDF or DOCX (up to 5 MB). With Adzuna configured, a newly uploaded resume triggers a first search using an editable skill-derived query. You can change the title/keywords, location, country, age limit and result count, then select **Find matches**.
-
-If an existing `.env` contains the old public example JWT secret, startup now rejects it. Generate a new secret **locally**, set it as `JWT_SECRET_KEY` in that file, and sign in again (existing tokens become invalid):
-
-```bat
-py -3.12 -c "import secrets; print(secrets.token_hex(48))"
-```
-
-Do not share that output. Setup deliberately does not silently overwrite existing credentials.
-
-Restart the API after editing `.env`. No Adzuna keys? Resume extraction still works; the UI explicitly reports configuration is required and does **not** substitute demo vacancies.
-
-Native Windows execution was not available in the audit environment. The scripts use Windows-compatible paths and Python HTTP requests rather than `curl.exe`; actual installation/browser tests were performed on Linux. Please share an exact installation error if your Windows environment differs.
-
-## Linux/macOS commands
-
-Use `python3.12` instead of `py -3.12` and forward slashes:
-
-```bash
-python3.12 scripts/setup_local.py
-# Separate terminals:
-python3.12 scripts/run_local.py api
-python3.12 scripts/run_local.py web
-```
-
-The tested platform was Debian 13 x86_64, Python 3.12.15 and Node 20.20.2. macOS was not executed in this audit. No GPU, WSL or model downloads are required by this implementation.
-
-## Faster navigation and saved data
-
-The workspace now reuses bounded, per-session resume snapshots instead of refetching every time you revisit a resume. Analysis appears independently of provider status/saved jobs, tab navigation retains the cards, and only 20 cards plus expanded explanations render initially. **Find matches still performs a fresh Adzuna search**; prior results remain visibly labelled while it runs or if it fails.
-
-Use **Refresh saved data** to revalidate the selected resume and its saved search, or **Show next 20 jobs** to reveal more already-ranked matches without another provider request. Snapshots are isolated per account/resume and cleared on logout; resume content is not stored in browser localStorage.
-
-See [PERFORMANCE_NOTES.md](PERFORMANCE_NOTES.md) for the diagnosis, exact patch baseline, implementation, reproducible CPU benchmark and delayed-response browser tests. The synthetic 100-job ranking benchmark improved from 1.32s to 0.21s with identical output; this does not measure live Adzuna network latency.
-
-## How matching works
-
-1. **Local extraction:** PyMuPDF reads text PDFs; python-docx reads paragraphs, tables and headers/footers. Skills use a bounded term/alias taxonomy. Education/experience sections retain their actual text. Missing contact details, degrees and experience durations remain unknown.
-2. **Resume isolation:** parsing creates a saved `ResumeAnalysis`. Matching reads that snapshot, never account-wide skills or another uploaded document. Older analyses from the previous fabricated-default parser require re-analysis.
-3. **One bounded provider search:** Adzuna is called over HTTPS with keywords and filters. No resume text, contact details or full extracted profile are sent. Up to 100 results are fetched across pages; default 50. Missing credentials, invalid keys, timeouts, rate limits and invalid provider payloads are explicit errors, not successful empty searches.
-4. **Normalize and rank:** IDs are deduplicated; explicitly expired/out-of-window listings are excluded. Every remaining fetched listing is scored before sorting. A good match on provider page 2 can rank above every job on page 1. No background generic job ingestion or shared cross-query result cache is used.
-5. **Explain the result:** each job shows skills found/not found in the selected resume, supporting text excerpts, applied score weights, salary currency, provider-estimate flags, posting date and a safe Adzuna link. Unspecified metadata is not invented.
-6. **Save by resume:** successful search results persist with resume ID, analysis ID, filters, provider and fetch timestamp. Reloaded results are explicitly marked **saved**, not a new availability check. Use Find matches to fetch current results again. Failed searches do not overwrite history with a fake successful result.
-
-### Score definition
-
-Base weights: explicitly required skills 45%, preferred skills 10%, other mentioned skills 10%, local TF-IDF-style lexical overlap 25%, experience ratio 10%. Only applicable signals participate; their weights are renormalized and shown in the UI. Unknown requirements/experience do not receive automatic full marks. Education and project counts do not get invented scoring requirements.
-
-Experience uses an explicit years-of-experience statement, or an estimate from month/year ranges in the experience section, merging overlaps. It does not treat the number of jobs as years of experience.
-
-**A score is an overlap heuristic, not a probability of getting hired or a guaranteed perfect match.** Skill mention is not proof of proficiency. The taxonomy is strongest for technical roles; non-technical coverage and complex resume layouts are limited. Adzuna returns **description snippets**, so absence from a snippet/resume is not proof that a qualification is absent from the full document or person. Review the evidence and original vacancy before applying. No application is submitted automatically.
-
-## Confirm you are running the corrected interface
-
-The corrected purple interface displays **Interface: screenshot-fixes-v1 · Build …** in the footer, even on the sign-in page. If this marker is absent, you are looking at an older build or another running folder/process.
-
-Stop the old API/web terminals with Ctrl+C. Run setup and both launchers from this updated source folder; open http://localhost:5173 and press **Ctrl+Shift+R** once. The launcher prints its actual source folder. `npm run preview` / `run_local.py web` now compare the compiled build with the source and rebuild when stale; direct Vite preview refuses an outdated build. Do not delete private data or credentials to fix a display problem.
-
-See [UI_UPDATE_NOTES.md](UI_UPDATE_NOTES.md) for screenshot-specific causes and tests.
-
-## Job cards and details
-
-Each job card has a **Details** button that opens a popup with the company, location, salary, working hours, contract type, posting date, experience mentioned, job snippet, matching score and skill comparisons. Close it with the close button, Escape or a click outside. Keyboard focus stays inside the popup and returns to the opening button.
-
-**Matched skills** and **Missing skills** are separate, always-visible sections on each card and inside the popup. Missing means not found in the selected resume, not proof the applicant lacks the skill; some missing mentions can be optional. If the snippet supplies no identifiable requirements, the UI says gaps cannot be determined rather than claiming a perfect match.
-
-## Resume analysis and the circular score
-
-Use **Resume analysis** to open the extracted personal-information cards and score panel; **Job matching** returns to the search and job cards. The circular value is centred inside the ring at every supported viewport size.
-
-The old interface labelled extraction confidence as a resume-quality score and supplied a default when it was missing. That is not a validated quality metric. The current backend does not calculate a resume-quality rating; the gauge displays **Not assessed / —** unless an explicit quality score is supplied. It never fabricates 88/92 or treats missing data as a perfect score.
-
-## Tests
-
-From `backend` on Windows:
-
-```bat
-.venv\Scripts\python.exe -m pytest -q
-.venv\Scripts\python.exe -m pip check
-.venv\Scripts\python.exe -m alembic current
-```
-
-Linux: use `.venv/bin/python` instead. From `frontend`:
-
-```bash
-npm run lint
-npm test
-npm run build
-npm audit
-```
-
-The focused suite replaces tests for the deliberately removed product features. Provider tests intercept HTTP with synthetic responses but run real pagination, parsing, matching, ownership checks and persistence. They never require or consume real Adzuna credentials.
-
-### Optional browser integration test
-
-Install Playwright separately in a development environment (`pip install playwright python-docx`, then `python -m playwright install chromium`; minimal Linux systems may need `install --with-deps chromium`).
-
-1. From `backend`, start `python -m tests.serve_browser_fixture` (port 8001).
-2. Start frontend preview on 5174 with `VITE_BACKEND_URL=http://127.0.0.1:8001` set in that terminal.
-3. From `backend`, run `python scripts/verify_core_browser.py` and `python scripts/verify_navigation_performance.py`.
-
-The test server has isolated temporary data and a prominent **TEST FIXTURES — not live vacancies** banner. It is not a production provider or demo-data mode. Never start it instead of `app.main:app` for normal use.
-
-## Configuration, data and limits
-
-- Local data: `backend/skillsync_ai.db` and `backend/storage/resumes/`. Back up both and `.env` before updating. Upload files and search results contain personal information; keep the development machine private.
-- Existing `.env` is preserved. If it points to an old external database, choose the intended database deliberately. There is no silent fallback to a different SQLite database. MySQL/PostgreSQL require their respective drivers and were not tested in this audit.
-- Migrations preserve historical tables/data; additive migrations add `resume_match_runs` and a processing lease timestamp. Removed product modules do not have active endpoints. There is no destructive data-drop migration.
-- API docs: http://localhost:8000/api/v1/docs. Health: http://localhost:8000/api/v1/health.
-- Backend/frontend ports: 8000/5173. Frontend calls relative `/api/v1`; Vite proxies to the backend. Alternative API port: set `VITE_BACKEND_URL` for the web launcher.
-- For editing the frontend, use `python scripts/run_local.py web-dev`; `web` automatically rebuilds a stale/missing bundle before previewing.
-- Password-reset email and 2FA are not provided. Registration/login/refresh/logout are implemented. No default accounts are seeded.
-- Scanned PDFs need OCR (not included); encrypted PDFs, files over 5 MB, PDFs over 30 pages, expanded DOCX files over 25 MB and extracted text over 100,000 characters are rejected.
-- Interrupted extraction can be retried or deleted after its five-minute processing lease expires. A superseded worker cannot overwrite the new extraction.
-- Search limits: supported countries India, UK, US, Australia and Canada; 1–90 posting-age days; 20, 50 or 100 fetched results per search (the API accepts those same choices). Not the entire job market. Provider snippets can omit requirements, and vacancy status can change after a fetch.
-- This is a local-development implementation. Public deployment needs HTTPS, hardened token storage, distributed rate limiting/provider quotas, retention controls and production load/security testing. Do not expose development servers on an untrusted network.
-
-Official provider reference: https://developer.adzuna.com/docs/search
+- `backend/` — FastAPI application, SQLAlchemy models, AI pipeline engines, repositories, services, and test suite
+- `frontend/` — React responsive student interface and analytics visualizations
+- `ARCHITECTURE.md` — Detailed Clean Architecture documentation
+- `SECURITY.md` — Security and authentication policies

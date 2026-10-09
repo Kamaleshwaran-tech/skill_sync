@@ -1,156 +1,212 @@
-from datetime import datetime, timezone
-from typing import Literal
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, ConfigDict
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-from app.config.settings import get_settings, COUNTRIES
+
+from app.config.settings import get_settings
 from app.database.session import get_db_session
-from app.dependencies.auth import get_current_user
-from app.models.models import ResumeAnalysis, ResumeMatchRun
-from app.routers.resumes import owned_resume
-from app.services.adzuna import AdzunaProvider, AdzunaError
-from app.services.job_matching import rank_jobs
+from app.dependencies.auth import get_current_user, require_roles
+from app.integrations.providers.additional_provider import AdditionalProvider
+from app.integrations.providers.adzuna import AdzunaProvider
+from app.repositories.job_repository import JobRepository
+from app.services.job_ingestion_service import JobIngestionService
+from app.services.job_normalization import JobNormalizationService
+from app.services.semantic_job_matching import SemanticJobMatchingService
+from app.models.models import Job, JobMatch, MatchDetail, Resume, SkillGap, UserSkill
 
-router = APIRouter(prefix="/jobs", tags=["Resume job matching"])
-
-
-class SearchRequest(BaseModel):
-    resume_id: int = Field(gt=0)
-    query: str = Field(default="", max_length=120)
-    location: str = Field(default="", max_length=120)
-    country: Literal["in", "gb", "us", "au", "ca"] | None = None
-    max_days: int = Field(default=30, ge=1, le=90)
-    limit: Literal[20, 50, 100] = 50
-    model_config = ConfigDict(extra="forbid")
+router = APIRouter(prefix="/jobs", tags=["Jobs"])
+settings = get_settings()
 
 
-@router.get("/status")
-def provider_status(user=Depends(get_current_user)):
-    provider = AdzunaProvider()
-    return {
-        "provider": provider.source,
-        "configured": provider.is_configured,
-        "country": get_settings().adzuna_country,
-        "countries": COUNTRIES,
-        "max_results": 100,
-        "sends_resume_to_provider": False,
-    }
+class JobMatchRequest(BaseModel):
+    resume_id: int
+    job_id: int
 
 
-@router.post("/search")
-def search_matches(
-    payload: SearchRequest,
+def _build_providers():
+    providers = []
+    if "adzuna" in str(settings.job_providers).lower():
+        providers.append(
+            AdzunaProvider(
+                app_id=settings.adzuna_app_id,
+                api_key=settings.adzuna_api_key,
+                base_url=settings.adzuna_base_url,
+                country=settings.adzuna_country,
+                timeout=settings.job_timeout_seconds,
+            )
+        )
+    if settings.additional_job_provider_url:
+        providers.append(
+            AdditionalProvider(
+                base_url=settings.additional_job_provider_url,
+                api_key=settings.additional_job_provider_api_key,
+                timeout=settings.job_timeout_seconds,
+            )
+        )
+    return providers
+
+
+@router.get("")
+@router.get("/")
+def list_jobs(
+    search: str | None = Query(default=None, max_length=120),
+    location: str | None = Query(default=None, max_length=120),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db_session),
-    user=Depends(get_current_user),
 ):
-    resume = owned_resume(db, user, payload.resume_id)
-    if resume.status != "COMPLETED":
-        raise HTTPException(409, "Analyse this resume before matching jobs")
-    analysis = (
-        db.query(ResumeAnalysis)
-        .filter_by(resume_id=resume.id)
-        .order_by(ResumeAnalysis.id.desc())
-        .first()
+    repo = JobRepository(db)
+    jobs = repo.list_jobs(search=search, location=location, offset=(page - 1) * page_size, limit=page_size)
+    # Refresh the shared cache after its TTL; every visitor then sees current
+    # results without each page load consuming an Adzuna request.
+    if settings.job_ingestion_enabled and (not jobs or repo.needs_refresh(settings.job_refresh_minutes)):
+        providers = _build_providers()
+        if providers:
+            JobIngestionService(
+                providers=providers,
+                repo=repo,
+                normalizer=JobNormalizationService(),
+            ).ingest(query=search, location=location, limit_per_provider=min(settings.job_refresh_limit, 200))
+            jobs = repo.list_jobs(search=search, location=location, offset=(page - 1) * page_size, limit=page_size)
+    return [
+        {
+            "id": job.id,
+            "external_id": job.external_id,
+            "title": job.title,
+            "company": job.company,
+            "location": job.location,
+            "job_type": job.job_type,
+            "salary_min": job.salary_min,
+            "salary_max": job.salary_max,
+            "description": job.description,
+            "posted_date": job.posted_date,
+            "url": job.url,
+            "required_skills": [item.skill.name for item in job.required_skills if item.skill and item.skill_type == "required"],
+            "preferred_skills": [item.skill.name for item in job.required_skills if item.skill and item.skill_type == "preferred"],
+        }
+        for job in jobs
+    ]
+
+
+@router.post("/match")
+def match_resume_to_job(
+    payload: JobMatchRequest,
+    current_user=Depends(require_roles("CANDIDATE", "ADMIN")),
+    db: Session = Depends(get_db_session),
+):
+    resume = db.query(Resume).filter(
+        Resume.id == payload.resume_id,
+        Resume.user_id == current_user.id,
+        Resume.status == "COMPLETED",
+    ).one_or_none()
+    if not resume:
+        raise HTTPException(status_code=404, detail="A completed resume was not found")
+
+    job = db.query(Job).filter(Job.id == payload.job_id, Job.is_active.is_(True)).one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="Active job not found")
+
+    user_skill_rows = (
+        db.query(UserSkill)
+        .filter(UserSkill.user_id == current_user.id)
+        .all()
     )
-    if not analysis or (analysis.profile or {}).get("parser_version") != "evidence-v1":
-        raise HTTPException(
-            409,
-            "Re-analyse this older resume with the current evidence-based parser first",
-        )
-    resume_id, analysis_id, user_id = resume.id, analysis.id, user.id
-    query = payload.query.strip() or (analysis.profile or {}).get("suggested_query", "")
-    if not query:
-        raise HTTPException(
-            422,
-            "Enter a job title or keyword; no reliable search suggestion could be extracted",
-        )
-    country = payload.country or get_settings().adzuna_country
-    provider = AdzunaProvider()
-    try:
-        fetched = provider.fetch_jobs(
-            query, payload.location.strip(), country, payload.max_days, payload.limit
-        )
-    except AdzunaError as exc:
-        raise HTTPException(
-            exc.status, detail={"code": exc.code, "message": exc.message}
-        ) from None
-    jobs, skipped = rank_jobs(
-        analysis.profile, fetched["results"], country, payload.max_days
+    user_skills = [row.skill.name for row in user_skill_rows if row.skill]
+    proficiency_by_skill = {row.skill_id: row.proficiency or 0 for row in user_skill_rows}
+    required_skills = [row.skill.name for row in job.required_skills if row.skill and row.skill_type == "required"]
+    preferred_skills = [row.skill.name for row in job.required_skills if row.skill and row.skill_type == "preferred"]
+
+    result = SemanticJobMatchingService().calculate(
+        {
+            "skills": user_skills,
+            "resume_text": resume.parsed_text or " ".join(user_skills),
+            "experience_years": len(current_user.experiences),
+            "project_count": len(current_user.projects),
+        },
+        {
+            "description": job.description or "",
+            "required_skills": required_skills,
+            "preferred_skills": preferred_skills,
+            "experience_required_years": 1.0,
+            "project_count": 1,
+        },
     )
-    result = {
+
+    match = db.query(JobMatch).filter(JobMatch.user_id == current_user.id, JobMatch.job_id == job.id).one_or_none()
+    if match is None:
+        match = JobMatch(user_id=current_user.id, job_id=job.id)
+        db.add(match)
+        db.flush()
+    else:
+        db.query(SkillGap).filter(SkillGap.job_match_id == match.id).delete()
+        db.query(MatchDetail).filter(MatchDetail.job_match_id == match.id).delete()
+        db.flush()
+
+    match.match_score = result["overall_match_score"]
+    match.matched_skills_count = len(result["matched_skills"])
+    match.missing_skills_count = len(result["missing_skills"])
+    db.add(
+        MatchDetail(
+            job_match=match,
+            semantic_similarity=result["semantic_similarity"],
+            required_skill_coverage=result["required_skill_coverage"],
+            preferred_skill_coverage=result["preferred_skill_coverage"],
+            experience_relevance=result["experience_relevance"],
+            project_relevance=result["project_relevance"],
+            score_breakdown=result["score_breakdown"],
+            strengths=result["strengths"],
+            potential_concerns=result["potential_concerns"],
+        )
+    )
+    seen_skill_ids: set[int] = set()
+    for job_skill in job.required_skills:
+        if not job_skill.skill or job_skill.skill.name not in result["missing_skills"]:
+            continue
+        if job_skill.skill_id in seen_skill_ids:
+            continue
+        seen_skill_ids.add(job_skill.skill_id)
+        required_proficiency = job_skill.required_proficiency or 0
+        current_proficiency = proficiency_by_skill.get(job_skill.skill_id, 0)
+        gap_percentage = max(0.0, (required_proficiency - current_proficiency) * 100.0 / max(1, required_proficiency))
+        db.add(
+            SkillGap(
+                job_match=match,
+                skill_id=job_skill.skill_id,
+                current_proficiency=current_proficiency,
+                required_proficiency=required_proficiency,
+                gap_percentage=gap_percentage,
+                recommendation=f"Build practical experience with {job_skill.skill.name} before applying.",
+            )
+        )
+    db.commit()
+
+    return {
+        **result,
         "resume_id": resume.id,
-        "resume_filename": resume.filename,
-        "analysis_id": analysis.id,
-        "provider": fetched["source"],
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "query": query,
-        "location": payload.location.strip(),
-        "country": country,
-        "max_days": payload.max_days,
-        "requested_limit": payload.limit,
-        "provider_total": fetched["provider_count"],
-        "fetched_count": len(fetched["results"]),
-        "scored_count": len(jobs),
-        "skipped_count": skipped,
-        "scope": "Ranked only the bounded set returned for this query, not every job in the market.",
-        "score_version": "evidence-overlap-v1",
-        "score_notice": "Heuristic evidence overlap, not a probability of getting hired. Confirm requirements and vacancy status on Adzuna.",
-        "jobs": jobs,
+        "job_id": job.id,
+        "job_match_id": match.id,
     }
-    # Recheck ownership/existence after the external call (the user may have deleted the resume).
-    db.expire_all()
-    current = owned_resume(db, user, resume_id)
-    latest = (
-        db.query(ResumeAnalysis.id)
-        .filter_by(resume_id=resume_id)
-        .order_by(ResumeAnalysis.id.desc())
-        .first()
-    )
-    if current.status != "COMPLETED" or not latest or latest[0] != analysis_id:
-        raise HTTPException(
-            409, "Resume analysis changed during the search. Reload and search again."
-        )
-    run = ResumeMatchRun(
-        user_id=user_id, resume_id=resume_id, analysis_id=analysis_id, result=result
-    )
-    try:
-        db.add(run)
-        db.commit()
-        db.refresh(run)
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            409, "Resume changed during the search. Reload and search again."
-        ) from None
-    return {**result, "run_id": run.id, "from_saved_search": False}
 
 
-@router.get("/matches/{resume_id}")
-def saved_matches(
-    resume_id: int,
+@router.post("/ingest")
+def ingest_jobs(
+    current_user=Depends(require_roles("ADMIN")),
     db: Session = Depends(get_db_session),
-    user=Depends(get_current_user),
+    query: str | None = Query(default=None),
+    location: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=50),
 ):
-    owned_resume(db, user, resume_id)
-    latest = (
-        db.query(ResumeAnalysis.id)
-        .filter_by(resume_id=resume_id)
-        .order_by(ResumeAnalysis.id.desc())
-        .first()
+    if not settings.job_ingestion_enabled:
+        raise HTTPException(status_code=503, detail="Job ingestion is disabled")
+
+    providers = _build_providers()
+    if not providers:
+        return {"created": 0, "skipped": 0, "errors": ["No job providers configured."]}
+
+    service = JobIngestionService(
+        providers=providers,
+        repo=JobRepository(db),
+        normalizer=JobNormalizationService(),
     )
-    run = (
-        db.query(ResumeMatchRun)
-        .filter_by(
-            user_id=user.id,
-            resume_id=resume_id,
-            analysis_id=latest[0] if latest else -1,
-        )
-        .order_by(ResumeMatchRun.id.desc())
-        .first()
-    )
-    return {
-        "result": {**run.result, "run_id": run.id, "from_saved_search": True}
-        if run
-        else None
-    }
+    return service.ingest(query=query, location=location, limit_per_provider=limit)
